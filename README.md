@@ -1,0 +1,48 @@
+# session-meter
+
+A Claude Code skill that measures what a piece of work costs on Claude's 5-hour usage meter, in percent of the session, by catching the exact moments the meter ticks over.
+
+**[Read the full guide](docs/index.html)**: the problem, how the measurement works, how to run it, our test results, limits and troubleshooting. (The guide is still to be written.)
+
+## In short
+
+- The meter shows whole percents, and its weights are not published. Token counts do not tell you what a job will cost on it, and the rules can change at any time.
+- Each time the meter ticks from N to N+1, the work done since the previous tick cost exactly one point. The skill runs small jobs, reads the meter after each, and divides the recorded work between ticks by the points.
+- It runs in two tiers. A quick one, about 3 points of the meter, gives a cost per point for one kind of work. A standard one, about 8 to 12 points, separates input, rereading and output, and checks a second model.
+- Everything is one Python script that uses only the standard library. No packages, no network calls of its own.
+
+## The problem
+
+Anything that plans work against the meter, such as a daily job that has to stay under 70% of the session, needs to know what a unit of work costs in percent. The tools report tokens and dollars. The meter reports a whole number. Nobody publishes how one becomes the other, the answer can differ by plan and by model, and it can change without notice. So the conversion has to be measured, and measured again when things change.
+
+## How it works
+
+You start from a quiet account and read the meter. You run one small job at a time, each sized to move the meter a fraction of a point, and read the meter twice after each, ten seconds apart, so a lagging display cannot fool you. When the number changes, you have found a tick. The work between one tick and the next is exactly one point. Finding the first tick costs up to a point, which is thrown away. Repeating an interval shows whether the meter is steady. If the intervals for the same kind of work differ by more than about a quarter, something else is using the account, and the run is thrown out.
+
+The script also tests an easy case first: whether points simply follow the dollar cost that every headless run reports. If they do, one number per plan is all you need.
+
+## Our strategy
+
+Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do. Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused. The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
+
+## Our testing
+
+Not run yet. This section will hold the dated results: the plan tested, the mode, the number of intervals, the cost per point for each kind of work, how steady it was, and what we could not tell. The method was checked on made-up data first, where it recovered the known cost per point to within a few percent.
+
+## Install
+
+You need Claude Code and Python 3.8 or newer. Copy this folder to `~/.claude/skills/session-meter`, or ask Claude Code to do it and to read the script to you first. Then ask Claude to run the session-meter skill.
+
+## Questions
+
+**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 3 points.
+
+**Can I leave other work running?** The clean mode wants nothing else running. A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
+
+**Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
+
+## License and disclaimer
+
+MIT; see [LICENSE](LICENSE). A personal project shared as is, not affiliated with Anthropic. It spends your own usage on purpose. You are responsible for what it spends.
+
+Made by Michael Tuminello. If something doesn't work, open an issue on this repository.
