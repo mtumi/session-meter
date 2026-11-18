@@ -68,7 +68,7 @@ Then ask Claude to run the session-meter skill.
 
 **Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 3 points.
 
-**Can I leave other work running?** The clean mode wants nothing else running. A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
+**Can I leave other work running?** The clean mode wants nothing else running. The skill can also find other Claude Code sessions on the same computer and, after you confirm, freeze them for the run and resume them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
 
 **Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
 
