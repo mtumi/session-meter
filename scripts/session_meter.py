@@ -11,6 +11,7 @@ Subcommands (all write to one records file per run, runs/<run>.jsonl):
   read         record one meter reading (type the numbers, or pass them as options)
   job          run one headless Claude job and record its tokens and cost
   transcripts  add up tokens that Claude Code logged on this machine between two times
+  estimate     turn a job's reported dollar cost into percent of the 5-hour session
   fit          find the ticks and report the cost of one point, with a steadiness check
 
 Standard library only. Python 3.8 or newer.
@@ -276,6 +277,19 @@ def do_resume():
     return 0
 
 
+
+def cmd_estimate(a):
+    path = os.path.join(RUNS, "calibration.json")
+    if not os.path.exists(path):
+        print("No calibration yet. Run the quick tier and 'fit' first.")
+        return 1
+    c = json.load(open(path))
+    pts = a.cost_usd * c["points_per_usd"]
+    print("About %.1f%% of the 5-hour session (rough; measured %s on %s, %d intervals)." % (
+        pts, c["date"], c.get("plan") or "unknown plan", c["intervals"]))
+    return 0
+
+
 # ── fit ──────────────────────────────────────────────────────────────────────────────────────
 
 def metrics(job):
@@ -387,6 +401,15 @@ def cmd_fit(a):
             "steady (spread %.0f%%)" % (spread * 100) if spread <= 0.25 else
             "NOT steady (spread %.0f%%): something else is using the account, or the meter is not linear" % (spread * 100))
         print("  %-14s %d interval(s), $%.3f per point, %s" % (mix, len(ivs), mean, status))
+    overall = sum(iv["per_point"]["cost"] for iv in intervals) / len(intervals)
+    if overall > 0:
+        plan = next((r.get("plan") for r in recs if r["type"] == "run" and r.get("plan")), None)
+        cal = {"date": now()[:10], "plan": plan, "run": a.run, "intervals": len(intervals),
+               "cost_usd_per_point": round(overall, 4), "points_per_usd": round(1.0 / overall, 3),
+               "by_mix": dict((m, round(v, 4)) for m, v in means.items()),
+               "note": "Cost is the dollar figure the headless run reports. Not corrected for the measuring session's own turns."}
+        json.dump(cal, open(os.path.join(RUNS, "calibration.json"), "w"), indent=1)
+        print("\nSaved runs/calibration.json: about %.1f%% of the 5-hour session per dollar of reported cost." % (1.0 / overall))
     real = [m for m in means if m != "?"]
     if len(real) >= 2:
         vals = [means[m] for m in real]
@@ -433,6 +456,8 @@ def main():
     s.add_argument("action", choices=["pause", "resume"])
     s.add_argument("--yes", action="store_true", help="skip the question (ask the user in chat first)")
     s.set_defaults(f=cmd_quiet)
+    s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")
+    s.add_argument("--cost-usd", type=float, required=True); s.set_defaults(f=cmd_estimate)
     s = sub.add_parser("fit"); s.add_argument("--run", required=True); s.set_defaults(f=cmd_fit)
     a = ap.parse_args()
     sys.exit(a.f(a) or 0)

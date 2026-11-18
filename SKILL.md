@@ -42,3 +42,6 @@ Run jobs one at a time. Name the model in full; the script refuses to trust a re
 
 ## Report
 Say the date, the plan, the mode, how many intervals, the cost of one point per kind of work, the steadiness, and what the numbers cannot tell (other devices, rule changes). Weights are true only for the date and plan measured.
+
+## After calibrating: talk in percent of the session
+Once `runs/calibration.json` exists, the user does not want token counts or dollars. For the rest of the conversation, and in later ones while the calibration is still current, state the cost of any planned work as a rough percent of the 5-hour session: "this will use about 6% of your 5-hour session". Get the number with `session_meter.py estimate --cost-usd <dollar figure from the job report or the plan>`, or by scaling from the measured cost per point. Say "about" and give a range when the estimate is loose. Mention tokens or dollars only if the user asks. Say the calibration date and plan when it matters, and recommend re-measuring if the plan or the rules may have changed.
