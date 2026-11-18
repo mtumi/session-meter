@@ -31,7 +31,38 @@ Not run yet. This section will hold the dated results: the plan tested, the mode
 
 ## Install
 
-You need Claude Code and Python 3.8 or newer. Copy this folder to `~/.claude/skills/session-meter`, or ask Claude Code to do it and to read the script to you first. Then ask Claude to run the session-meter skill.
+**What you need**
+
+1. **Claude Code**, with the `claude` command working in your terminal. Check with:
+
+```bash
+claude --version
+```
+
+If it is not found, install it from Anthropic's setup page (docs.claude.com, search "Claude Code setup"), then sign in once by running `claude`.
+
+2. **Python 3.8 or newer.** The script uses only Python's built-in library, so there is nothing else to install. Check with:
+
+```bash
+python3 --version
+```
+
+If it is missing or older, install it:
+- **Mac:** `xcode-select --install` (installs Apple's Command Line Tools, which include Python 3), or `brew install python` if you use Homebrew.
+- **Windows:** `winget install Python.Python.3.12`, or download it from python.org and tick "Add Python to PATH". On Windows the command may be `python` instead of `python3`.
+- **Linux:** `sudo apt install python3` (Debian and Ubuntu) or `sudo dnf install python3` (Fedora).
+
+3. **A way to read the meter.** In the Claude desktop app, Claude can read it for you. Anywhere else, you type the percent shown on your usage screen (or from the `/usage` command in Claude Code) when the script asks. Nothing else to install.
+
+**Install the skill**
+
+Copy this folder to `~/.claude/skills/session-meter`, or ask Claude Code to do it and to read the script to you first:
+
+```bash
+cp -R session-meter ~/.claude/skills/session-meter
+```
+
+Then ask Claude to run the session-meter skill.
 
 ## Questions
 
