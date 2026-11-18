@@ -2,8 +2,6 @@
 
 A Claude Code skill that measures what a piece of work costs on Claude's 5-hour usage meter, in percent of the session, by catching the exact moments the meter ticks over.
 
-**[Read the full guide](docs/index.html)**: the problem, how the measurement works, how to run it, our test results, limits and troubleshooting. (The guide is still to be written.)
-
 ## In short
 
 - The meter shows whole percents, and its weights are not published. Token counts do not tell you what a job will cost on it, and the rules can change at any time.
@@ -31,7 +29,14 @@ Anthropic has said the 5-hour session can drain faster at busy times. In March 2
 
 ## Our testing
 
-Not run yet. This section will hold the dated results: the plan tested, the mode, the number of intervals, the cost per point for each kind of work, how steady it was, and what we could not tell. The method was checked on made-up data first, where it recovered the known cost per point to within a few percent.
+This is an early release. What has and has not been checked, as of 2026-11-18:
+
+- **Checked on made-up data:** the fitting logic recovered a known cost per point to within a few percent, and its steadiness and dollar-cost checks fired when they should.
+- **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points. The jobs alone cost about $0.77 of reported cost per point, the two points 16% apart. That run left out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so treat $0.77 as a floor. The record is in `runs/quick-2026-11-18.jsonl`.
+- **Not yet tested on the real meter:** the automatic `run` command (parallel jobs, the script reading the meter with `claude -p "/usage"`), and the `quiet pause` and `quiet resume` commands. Whether the meter weighs simultaneous jobs differently from one at a time is unknown; the way to find out is to run the same work with 1 worker and with 8 and compare. Whether the meter lags behind spending is also unmeasured.
+- **Not tested:** other plans, other models, Windows, Linux.
+
+A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
 
 ## Install
 
