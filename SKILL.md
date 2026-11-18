@@ -19,6 +19,9 @@ Everything is done by `scripts/session_meter.py` (Python standard library only).
 4. Note the plan, and whether extra usage is on.
 
 ## Procedure
+The automatic way (new, not yet tested on the real meter): `session_meter.py run --run <name> --mix output-fast --model <full model id> --prompt-file workloads/output-fast.md --points 3 --workers 4`. The script runs jobs in parallel, reads the meter itself with `claude -p "/usage"`, prints a time estimate first and a progress line after every reading, then fits. Start it in the background and wait for it to finish; do not take turns while it runs, since this session's own turns spend meter. If `claude -p "/usage"` does not print a session percent, use the manual way below.
+
+The manual way:
 1. `session_meter.py init --run <name> --plan <plan> --paused` (add `--mode passive` for passive).
 2. Record a reading: `session_meter.py read --run <name>` (type the percents shown), or pass `--five-hour N --weekly-all N --weekly-model N --reset <time>` when a tool supplies them. Record two readings ten seconds apart every time.
 3. Run one small job, then read the meter twice. Repeat. Keep each job to about a tenth to a third of a point, so a tick is located within one job. Start rough, estimate the size of one point, then size jobs to fit.
