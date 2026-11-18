@@ -39,6 +39,7 @@ This is an early release. What has and has not been checked, as of 2026-11-18:
 - **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points. On average, one point of the 5-hour session took about 42,000 output tokens of these jobs, plus about 21,000 tokens written to the cache and 36,000 read from it, and the two points were 16% apart. That count leaves out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so a point is at least this much work and possibly up to twice as much. The record is in `runs/quick-2026-11-18.jsonl`.
 - **Not yet tested on the real meter:** the automatic `run` command (parallel jobs, the script reading the meter with `claude -p "/usage"`), and the `quiet pause` and `quiet resume` commands. Whether the meter weighs simultaneous jobs differently from one at a time is unknown; the way to find out is to run the same work with 1 worker and with 8 and compare. Whether the meter lags behind spending is also unmeasured.
 - **Not tested:** other plans, other models, Windows, Linux.
+- **Not yet checked:** whether Claude keeps talking in percent of the 5-hour session after calibrating, instead of falling back to tokens. Talking in tokens may be too ingrained for one instruction to override.
 
 A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
 
