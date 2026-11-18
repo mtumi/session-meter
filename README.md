@@ -19,6 +19,10 @@ You start from a quiet account and read the meter. You run one small job at a ti
 
 The script also tests an easy case first: whether points simply follow the dollar cost that every headless run reports. If they do, one number per plan is all you need.
 
+## Related tools
+
+[ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra. session-meter does the measurement on demand, in one sitting, with a controlled workload and your other sessions paused. That costs about 3 points, and afterwards Claude talks in percent of the 5-hour session. Because you choose when it runs, you can also measure the busy weekday window and off-peak separately with the same work, and see whether time of day changes the figure (see Time of day). If you can wait a few days and would rather not spend the points, ccmeter is the cheaper route.
+
 ## Our strategy
 
 Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do. Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused, and ideally run it twice, once at a busy weekday time and once off-peak (see Time of day). The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
