@@ -6,7 +6,7 @@ previous tick cost exactly one point. This script records the work (tokens and d
 per job) and the meter readings, then divides the work between ticks by the points.
 
 Subcommands (all write to one records file per run, runs/<run>.jsonl):
-  quiet        list, freeze or resume other Claude Code sessions so the account is quiet
+  quiet        pause other Claude Code sessions for the measurement, or restart them
   init         start a run and note the plan, versions and what else is running
   read         record one meter reading (type the numbers, or pass them as options)
   job          run one headless Claude job and record its tokens and cost
@@ -185,110 +185,94 @@ def cmd_transcripts(a):
 
 
 
-# ── quiet: find, freeze and resume other Claude Code sessions ──────────────────────────────
+# ── quiet: pause other Claude Code sessions for the measurement ─────────────────────────────
 
 import re
 import signal
 
 FROZEN = os.path.join(RUNS, "frozen.json")
-DEFAULT_PATTERN = r"claude-code/|/claude(\s|$)|^claude(\s|$)"
-
-
-def cpu_seconds(t):
-    # ps "time" is [DD-][HH:]MM:SS[.hh]
-    days = 0
-    if "-" in t:
-        d, t = t.split("-", 1)
-        days = int(d)
-    parts = [float(x) for x in t.split(":")]
-    secs = 0.0
-    for x in parts:
-        secs = secs * 60 + x
-    return days * 86400 + secs
+PATTERN = re.compile(r"claude-code/|/claude(\s|$)|^claude(\s|$)")
 
 
 def ps_rows():
-    out = subprocess.run(["ps", "-axo", "pid=,ppid=,time=,command="], capture_output=True, text=True).stdout
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True).stdout
     rows = []
     for line in out.splitlines():
-        bits = line.split(None, 3)
-        if len(bits) == 4:
-            try:
-                rows.append({"pid": int(bits[0]), "ppid": int(bits[1]), "cpu": cpu_seconds(bits[2]), "cmd": bits[3]})
-            except ValueError:
-                pass
+        bits = line.split(None, 2)
+        if len(bits) == 3 and bits[0].isdigit() and bits[1].isdigit():
+            rows.append({"pid": int(bits[0]), "ppid": int(bits[1]), "cmd": bits[2]})
     return rows
 
 
-def own_chain(rows):
-    parent = dict((r["pid"], r["ppid"]) for r in rows)
-    chain, pid = set(), os.getpid()
-    while pid and pid not in chain:
-        chain.add(pid)
-        pid = parent.get(pid)
-    return chain
-
-
-def find_sessions(pattern, scope):
+def other_sessions():
     rows = ps_rows()
-    mine = own_chain(rows)
-    rx = re.compile(pattern)
-    cands = [r for r in rows if rx.search(r["cmd"]) and r["pid"] not in mine
-             and "disclaimer" not in r["cmd"] and "session_meter" not in r["cmd"]
-             and "Claude.app/Contents/MacOS" not in r["cmd"]]
-    time.sleep(5)
-    after = dict((r["pid"], r["cpu"]) for r in ps_rows())
-    for r in cands:
-        r["active"] = (after.get(r["pid"], r["cpu"]) - r["cpu"]) >= 0.2
-    return [r for r in cands if r["active"]] if scope == "active" else cands
+    parent = dict((r["pid"], r["ppid"]) for r in rows)
+    mine, pid = set(), os.getpid()
+    while pid and pid not in mine:
+        mine.add(pid)
+        pid = parent.get(pid)
+    return [r for r in rows if PATTERN.search(r["cmd"]) and r["pid"] not in mine
+            and "disclaimer" not in r["cmd"] and "session_meter" not in r["cmd"]
+            and "Claude.app/Contents/MacOS" not in r["cmd"]]
+
+
+def folder_of(pid):
+    out = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if line.startswith("n"):
+            return line[1:]
+    return "folder unknown"
 
 
 def cmd_quiet(a):
     if os.name == "nt":
-        print("Freezing is not available on Windows. Close other Claude sessions yourself.")
+        print("Pausing is not available on Windows. Close other Claude sessions yourself.")
         return 1
     if a.action == "resume":
         return do_resume()
-    found = find_sessions(a.pattern, a.scope)
-    print("%d Claude Code process(es) other than this one (%s):" % (len(found), a.scope))
-    for r in found:
-        print("  pid %-6d %s%s" % (r["pid"], "ACTIVE  " if r["active"] else "idle    ", r["cmd"][:90]))
-    print("Not covered: phone, web, voice, other computers, scheduled tasks that have not started yet.")
-    if a.action == "list" or not found:
+    found = other_sessions()
+    if not found:
+        print("No other Claude Code sessions are running on this computer.")
         return 0
     if not a.yes:
-        if input("Freeze these (they resume when you run 'quiet resume' or after %d minutes)? type yes: " % a.max_minutes).strip().lower() != "yes":
-            print("Not frozen.")
+        print("%d other Claude Code session(s) are running." % len(found))
+        if input("Pause them while we measure? They pick up where they left off afterwards. [y/n] ").strip().lower() not in ("y", "yes"):
+            print("Left running. Readings may include their usage.")
             return 0
-    pids = []
+    paused = []
     for r in found:
         try:
             os.kill(r["pid"], signal.SIGSTOP)
-            pids.append(r["pid"])
-        except OSError as e:
-            print("  could not freeze", r["pid"], e)
+            paused.append({"pid": r["pid"], "folder": folder_of(r["pid"])})
+        except OSError:
+            pass
     os.makedirs(RUNS, exist_ok=True)
-    json.dump({"t": now(), "pids": pids}, open(FROZEN, "w"))
-    # Safety net: a detached timer resumes them even if this script or the run dies.
-    if pids:
-        subprocess.Popen(["sh", "-c", "sleep %d; kill -CONT %s 2>/dev/null" % (a.max_minutes * 60, " ".join(map(str, pids)))],
+    json.dump({"t": now(), "paused": paused}, open(FROZEN, "w"))
+    if paused:
+        # Quiet backstop: they restart by themselves after 90 minutes if nobody runs 'quiet resume'.
+        subprocess.Popen(["sh", "-c", "sleep 5400; kill -CONT %s 2>/dev/null" % " ".join(str(x["pid"]) for x in paused)],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    print("Frozen %d. Resume with: session_meter.py quiet resume   (auto-resume in %d minutes)" % (len(pids), a.max_minutes))
+    print("Paused %d session(s):" % len(paused))
+    for x in paused:
+        print("  %s  (process %d)" % (x["folder"], x["pid"]))
+    print("To restart them now: session_meter.py quiet resume")
     return 0
 
 
 def do_resume():
     if not os.path.exists(FROZEN):
-        print("Nothing recorded as frozen.")
+        print("No sessions are paused.")
         return 0
-    pids = json.load(open(FROZEN))["pids"]
-    for pid in pids:
+    paused = json.load(open(FROZEN))["paused"]
+    for x in paused:
         try:
-            os.kill(pid, signal.SIGCONT)
+            os.kill(x["pid"], signal.SIGCONT)
         except OSError:
             pass
     os.remove(FROZEN)
-    print("Resumed %d process(es)." % len(pids))
+    print("Restarted %d session(s):" % len(paused))
+    for x in paused:
+        print("  " + x["folder"])
     return 0
 
 
@@ -445,13 +429,9 @@ def main():
     s.add_argument("--timeout", type=int, default=600); s.set_defaults(f=cmd_job)
     s = sub.add_parser("transcripts"); s.add_argument("--since", required=True)
     s.add_argument("--until", required=True); s.set_defaults(f=cmd_transcripts)
-    s = sub.add_parser("quiet", help="find, freeze or resume other Claude Code sessions")
-    s.add_argument("action", choices=["list", "freeze", "resume"])
-    s.add_argument("--scope", choices=["active", "all"], default="active",
-                   help="active: only sessions using the processor now (default); all: freeze every other session")
-    s.add_argument("--yes", action="store_true", help="skip the typed confirmation (confirm with the user first)")
-    s.add_argument("--max-minutes", type=int, default=90, help="auto-resume after this long")
-    s.add_argument("--pattern", default=DEFAULT_PATTERN, help=argparse.SUPPRESS)
+    s = sub.add_parser("quiet", help="pause other Claude Code sessions, or restart them")
+    s.add_argument("action", choices=["pause", "resume"])
+    s.add_argument("--yes", action="store_true", help="skip the question (ask the user in chat first)")
     s.set_defaults(f=cmd_quiet)
     s = sub.add_parser("fit"); s.add_argument("--run", required=True); s.set_defaults(f=cmd_fit)
     a = ap.parse_args()
