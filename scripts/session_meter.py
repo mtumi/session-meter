@@ -196,25 +196,46 @@ PATTERN = re.compile(r"claude-code/|/claude(\s|$)|^claude(\s|$)")
 
 
 def ps_rows():
-    out = subprocess.run(["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True).stdout
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,time=,command="], capture_output=True, text=True).stdout
     rows = []
     for line in out.splitlines():
-        bits = line.split(None, 2)
-        if len(bits) == 3 and bits[0].isdigit() and bits[1].isdigit():
-            rows.append({"pid": int(bits[0]), "ppid": int(bits[1]), "cmd": bits[2]})
+        bits = line.split(None, 3)
+        if len(bits) == 4 and bits[0].isdigit() and bits[1].isdigit():
+            try:
+                rows.append({"pid": int(bits[0]), "ppid": int(bits[1]), "cpu": cpu_seconds(bits[2]), "cmd": bits[3]})
+            except ValueError:
+                pass
     return rows
 
 
-def other_sessions():
+def cpu_seconds(t):
+    # ps "time" is [DD-][HH:]MM:SS[.hh]
+    days = 0
+    if "-" in t:
+        d, t = t.split("-", 1)
+        days = int(d)
+    secs = 0.0
+    for x in t.split(":"):
+        secs = secs * 60 + float(x)
+    return days * 86400 + secs
+
+
+def other_sessions(busy_only=True):
     rows = ps_rows()
     parent = dict((r["pid"], r["ppid"]) for r in rows)
     mine, pid = set(), os.getpid()
     while pid and pid not in mine:
         mine.add(pid)
         pid = parent.get(pid)
-    return [r for r in rows if PATTERN.search(r["cmd"]) and r["pid"] not in mine
-            and "disclaimer" not in r["cmd"] and "session_meter" not in r["cmd"]
-            and "Claude.app/Contents/MacOS" not in r["cmd"]]
+    found = [r for r in rows if PATTERN.search(r["cmd"]) and r["pid"] not in mine
+             and "disclaimer" not in r["cmd"] and "session_meter" not in r["cmd"]
+             and "Claude.app/Contents/MacOS" not in r["cmd"]]
+    if not busy_only:
+        return found
+    # An idle session spends nothing, so only the ones using the processor now are worth pausing.
+    time.sleep(4)
+    after = dict((r["pid"], r["cpu"]) for r in ps_rows())
+    return [r for r in found if after.get(r["pid"], r["cpu"]) - r["cpu"] >= 0.2]
 
 
 def folder_of(pid):
@@ -231,12 +252,12 @@ def cmd_quiet(a):
         return 1
     if a.action == "resume":
         return do_resume()
-    found = other_sessions()
+    found = other_sessions(busy_only=not a.all)
     if not found:
-        print("No other Claude Code sessions are running on this computer.")
+        print("No other Claude Code sessions are busy right now." if not a.all else "No other Claude Code sessions are running.")
         return 0
     if not a.yes:
-        print("%d other Claude Code session(s) are running." % len(found))
+        print("%d other Claude Code session(s) %s." % (len(found), "are running" if a.all else "are busy right now"))
         if input("Pause them while we measure? They pick up where they left off afterwards. [y/n] ").strip().lower() not in ("y", "yes"):
             print("Left running. Readings may include their usage.")
             return 0
@@ -455,6 +476,7 @@ def main():
     s = sub.add_parser("quiet", help="pause other Claude Code sessions, or restart them")
     s.add_argument("action", choices=["pause", "resume"])
     s.add_argument("--yes", action="store_true", help="skip the question (ask the user in chat first)")
+    s.add_argument("--all", action="store_true", help="also pause idle sessions (not normally needed)")
     s.set_defaults(f=cmd_quiet)
     s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")
     s.add_argument("--cost-usd", type=float, required=True); s.set_defaults(f=cmd_estimate)

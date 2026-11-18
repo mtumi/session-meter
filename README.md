@@ -23,7 +23,11 @@ The script also tests an easy case first: whether points simply follow the dolla
 
 ## Our strategy
 
-Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do. Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused. The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
+Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do. Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused, and ideally run it twice, once at a busy weekday time and once off-peak (see Time of day). The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
+
+## Time of day
+
+Anthropic has said the 5-hour session can drain faster at busy times. In March 2026 it announced that on weekdays from 5am to 11am Pacific time (8am to 2pm Eastern, 1pm to 7pm UTC in winter) the session limit would drain faster, with the weekly limit unchanged. Reports in May 2026 say it removed that peak-hour reduction for Claude Code on Pro and Max plans, but the same wording has been reported to remain for other products, and we could not find Anthropic's own current statement. So treat it as unknown for your plan. The skill records the local time, the day and the time zone with every run. If you want the full picture, run the standard tier twice: once during the weekday window above and once overnight or on a weekend, and compare the cost per point. If the two agree, the meter does not care about time of day for you. If they differ, quote both. Check Anthropic's help pages for the current rule.
 
 ## Our testing
 
