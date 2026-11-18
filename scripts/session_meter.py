@@ -11,6 +11,7 @@ Subcommands (all write to one records file per run, runs/<run>.jsonl):
   read         record one meter reading (type the numbers, or pass them as options)
   job          run one headless Claude job and record its tokens and cost
   transcripts  add up tokens that Claude Code logged on this machine between two times
+  run          measure automatically (parallel jobs, meter polled by the script, progress shown)
   estimate     turn a job's reported dollar cost into percent of the 5-hour session
   fit          find the ticks and report the cost of one point, with a steadiness check
 
@@ -311,6 +312,148 @@ def cmd_estimate(a):
     return 0
 
 
+
+# ── run: the automatic measurement ───────────────────────────────────────────────────────────
+
+import threading
+import re as _re
+
+POLL_CMD = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--setting-sources", "",
+            "--no-session-persistence", "--no-chrome", "/usage"]
+
+
+def poll_meter():
+    """Read the meter with 'claude -p /usage': no model call, a few seconds. Returns dict or None."""
+    t0 = time.time()
+    p = subprocess.run(POLL_CMD, capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=60)
+    t1 = time.time()
+    m = _re.search(r"Current session:\s*(\d+)% used", p.stdout)
+    if not m:
+        return None
+    w = _re.search(r"Current week \(all models\):\s*(\d+)% used", p.stdout)
+    f = _re.search(r"Current week \((?!all)[^)]*\):\s*(\d+)% used", p.stdout)
+    mid = datetime.fromtimestamp((t0 + t1) / 2, timezone.utc).isoformat(timespec="seconds")
+    return {"t": mid, "poll_seconds": round(t1 - t0, 1), "five_hour": int(m.group(1)),
+            "weekly_all": int(w.group(1)) if w else None, "weekly_model": int(f.group(1)) if f else None}
+
+
+def one_job(a):
+    """Run one headless job and return its record (same shape as the 'job' command)."""
+    prompt = open(a.prompt_file).read() if a.prompt_file else a.prompt
+    if a.filler_words:
+        prompt = filler(a.filler_words) + "\n\n" + prompt
+    cmd = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--tools", "", "--setting-sources", "",
+           "--no-session-persistence", "--no-chrome", "--disable-slash-commands", "--model", a.model,
+           "--output-format", "json"]
+    t0 = now()
+    p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=600)
+    rec = {"type": "job", "t_start": t0, "t_end": now(), "mix": a.mix, "model": a.model, "error": None}
+    try:
+        d = json.loads(p.stdout)
+    except ValueError:
+        rec["error"] = (p.stderr or p.stdout)[-200:] or "no output"
+        return rec
+    u = d.get("usage") or {}
+    mu = d.get("modelUsage") or {}
+    rec.update({"input": u.get("input_tokens", 0), "cache_write": u.get("cache_creation_input_tokens", 0),
+                "cache_read": u.get("cache_read_input_tokens", 0), "output": u.get("output_tokens", 0),
+                "cost_usd": d.get("total_cost_usd"), "models": mu, "is_error": d.get("is_error")})
+    if a.model not in mu:
+        rec["error"] = "asked for %s, answered by %s" % (a.model, sorted(mu))
+    return rec
+
+
+def cmd_run(a):
+    lock = threading.Lock()
+    stop = threading.Event()
+    state = {"readings": [], "jobs": [], "ticks": 0, "last": None, "cost_since_tick": 0.0, "tick_costs": [],
+             "t_first_tick": None, "errors": 0}
+    append(a.run, {"type": "run", "t": now(), "run": a.run, "plan": a.plan, "mode": "auto",
+                   "workers": a.workers, "note": a.note,
+                   "claude_version": subprocess.run(["claude", "--version"], capture_output=True, text=True).stdout.strip(),
+                   "local_time": datetime.now().astimezone().isoformat(timespec="seconds")})
+    print("Measuring. First a quick pilot to estimate the time.", flush=True)
+    r0 = poll_meter()
+    if not r0:
+        print("Could not read the meter with 'claude -p /usage'. Use the manual 'read' and 'job' commands instead.")
+        return 1
+    append(a.run, dict(r0, type="meter", note="start"))
+    state["last"] = r0["five_hour"]
+    tp = time.time()
+    pj = one_job(a)
+    append(a.run, pj)
+    jsecs = max(1.0, time.time() - tp)
+    jcost = pj.get("cost_usd") or 0.0
+    if pj.get("error") or not jcost:
+        print("Pilot job failed:", pj.get("error"))
+        return 1
+    est_cost_pt = a.expect_usd_per_point
+    secs_per_point = est_cost_pt / (a.workers * jcost / jsecs)
+    total_min = (a.points + 1) * secs_per_point / 60.0
+    print("Pilot: one job takes %.0fs and reports $%.3f; a poll takes %.0fs." % (jsecs, jcost, r0["poll_seconds"]), flush=True)
+    print("Plan: %d workers, finding the first tick (up to 1 point) then %d full points." % (a.workers, a.points), flush=True)
+    print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first point)." % (
+        total_min, est_cost_pt), flush=True)
+    t_start = time.time()
+
+    def worker(delay):
+        time.sleep(delay)
+        while not stop.is_set():
+            rec = one_job(a)
+            with lock:
+                append(a.run, rec)
+                state["jobs"].append(rec)
+                if rec.get("error"):
+                    state["errors"] += 1
+                else:
+                    state["cost_since_tick"] += rec.get("cost_usd") or 0.0
+
+    threads = [threading.Thread(target=worker, args=(i * 5,), daemon=True) for i in range(a.workers)]
+    for t in threads:
+        t.start()
+    need = a.points + 1
+    last_tick_time = None
+    try:
+        while state["ticks"] < need:
+            r = poll_meter()
+            if r is None:
+                continue
+            with lock:
+                append(a.run, dict(r, type="meter", note="auto"))
+                if r["five_hour"] < state["last"]:
+                    print("The meter dropped (a reset?). Stopping; discard this run.", flush=True)
+                    break
+                if r["five_hour"] > state["last"]:
+                    state["ticks"] += 1
+                    state["last"] = r["five_hour"]
+                    if state["ticks"] > 1:
+                        state["tick_costs"].append(state["cost_since_tick"])
+                    state["cost_since_tick"] = 0.0
+                    last_tick_time = time.time()
+                    print("  tick %d of %d found: meter now %d%%" % (state["ticks"], need, r["five_hour"]), flush=True)
+                per_pt = (sum(state["tick_costs"]) / len(state["tick_costs"])) if state["tick_costs"] else est_cost_pt
+                done = max(0, state["ticks"] - 1)
+                left_pts = (a.points - done) - min(1.0, state["cost_since_tick"] / per_pt) if state["ticks"] >= 1 else need
+                rate = (a.workers * jcost / jsecs)
+                mins = max(0.0, left_pts * per_pt / rate / 60.0)
+                print("  meter %d%%, full points done %d of %d, about $%.2f toward the next, about %.0f min left%s" % (
+                    r["five_hour"], done, a.points, state["cost_since_tick"], mins,
+                    ("  [%d job error(s)]" % state["errors"]) if state["errors"] else ""), flush=True)
+            if time.time() - t_start > a.max_minutes * 60:
+                print("Time limit reached; stopping.", flush=True)
+                break
+    finally:
+        stop.set()
+        print("Stopping jobs (letting in-flight ones finish)...", flush=True)
+        for t in threads:
+            t.join(timeout=120)
+    print("\nFitting.", flush=True)
+    class F: pass
+    f = F(); f.run = a.run
+    cmd_fit(f)
+    return 0
+
+
 # ── fit ──────────────────────────────────────────────────────────────────────────────────────
 
 def metrics(job):
@@ -347,12 +490,13 @@ def cmd_fit(a):
     jobs = [r for r in recs if r["type"] == "job"]
     meters = sorted([r for r in recs if r["type"] == "meter" and r.get("five_hour") is not None],
                     key=lambda r: r["t"])
-    # Keep a reading only when the next one, within 30 seconds, agrees (the display can lag).
+    # Drop a reading only if it is a one-off blip (differs from both neighbours, which agree).
     steady = []
     for i, r in enumerate(meters):
-        nxt = [x for x in meters[i + 1:] if (parse_t(x["t"]) - parse_t(r["t"])).total_seconds() <= 30]
-        if not nxt or nxt[0]["five_hour"] == r["five_hour"]:
-            steady.append(r)
+        if 0 < i < len(meters) - 1 and r["five_hour"] != meters[i - 1]["five_hour"] \
+                and meters[i - 1]["five_hour"] == meters[i + 1]["five_hour"]:
+            continue
+        steady.append(r)
     problems = []
     for j in jobs:
         if j.get("error"):
@@ -478,6 +622,15 @@ def main():
     s.add_argument("--yes", action="store_true", help="skip the question (ask the user in chat first)")
     s.add_argument("--all", action="store_true", help="also pause idle sessions (not normally needed)")
     s.set_defaults(f=cmd_quiet)
+    s = sub.add_parser("run", help="measure automatically: jobs in parallel, meter polled, progress and time estimate")
+    s.add_argument("--run", required=True); s.add_argument("--mix", required=True)
+    s.add_argument("--model", required=True, help="full model id")
+    s.add_argument("--prompt"); s.add_argument("--prompt-file"); s.add_argument("--filler-words", type=int, default=0)
+    s.add_argument("--points", type=int, default=3, help="full points to measure after the first tick (quick tier: 3)")
+    s.add_argument("--workers", type=int, default=4, help="jobs at once")
+    s.add_argument("--expect-usd-per-point", type=float, default=0.8, help="rough guess, only for the time estimate")
+    s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")
+    s.set_defaults(f=cmd_run)
     s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")
     s.add_argument("--cost-usd", type=float, required=True); s.set_defaults(f=cmd_estimate)
     s = sub.add_parser("fit"); s.add_argument("--run", required=True); s.set_defaults(f=cmd_fit)

@@ -1,1 +1,1 @@
-Write a detailed, original 900-word description of how a harbour pilot guides a cargo ship into a crowded port, covering tides, tugboats, radio calls, and what can go wrong. Use plain paragraphs. Do not ask questions and do not use tools.
+Write a detailed, original 2000-word description of how a harbour pilot guides a cargo ship into a crowded port, covering tides, tugboats, radio calls, and what can go wrong. Use plain paragraphs. Do not ask questions and do not use tools.
