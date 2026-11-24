@@ -88,9 +88,18 @@ def main():
     if d:
         # Time left comes from the run itself: it writes its expected end ("eta") when it starts and
         # updates it at the starting gun. Before the run has started there is no estimate yet.
-        left = -age_seconds(d.get("eta")) if d.get("eta") else None
-        when = ("about %d more minute(s)" % max(1, int(left / 60 + 0.99))) if left is not None and left > 0 \
-            else ("finishing now" if left is not None else "time left not known yet")
+        # Same rounding as the run's own estimate line, so the two never disagree.
+        def mins(key):
+            return max(1, round(-age_seconds(d[key]) / 60.0)) if d.get(key) and -age_seconds(d[key]) > 0 else None
+        typ, latest = mins("eta"), mins("eta_latest")
+        if d.get("eta") is None:
+            when = "starting up, estimate in a few seconds"
+        elif typ is None and latest is None:
+            when = "finishing now"
+        elif latest and latest != typ:
+            when = "about %d more minute(s), at most about %d" % (typ or 1, latest)
+        else:
+            when = "about %d more minute(s)" % (typ or latest)
         if prompt == "1":
             d["discarded"] = True
             json.dump(d, open(CHECK, "w"))

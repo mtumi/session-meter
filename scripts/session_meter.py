@@ -464,8 +464,10 @@ def cmd_run(a):
         max(1, round(typ_min)), max(1, round(max_min)), per_pt, basis), flush=True)
     t_start = time.time()
     if not a.no_guard:  # meter_guard.py answers new prompts with a choice while this marker exists
+        # The guard shows the same estimate the run prints: a typical end and a latest end.
         write_check(run_pid=os.getpid(), run=a.run, started=now(),
-                    eta=datetime.fromtimestamp(time.time() + max_min * 60, timezone.utc).isoformat(timespec="seconds"))
+                    eta=datetime.fromtimestamp(time.time() + typ_min * 60, timezone.utc).isoformat(timespec="seconds"),
+                    eta_latest=datetime.fromtimestamp(time.time() + max_min * 60, timezone.utc).isoformat(timespec="seconds"))
     discarded = {"yes": False}
 
     def on_term(signum, frame):
@@ -494,7 +496,9 @@ def cmd_run(a):
                         print("  starting gun: meter now %g%% (measuring from here)" % v, flush=True)
                         if not a.no_guard:  # the rest is now known: the points still to measure
                             left = a.points * per_pt / rate
-                            write_check(eta=datetime.fromtimestamp(time.time() + left, timezone.utc).isoformat(timespec="seconds"))
+                            end = datetime.fromtimestamp(time.time() + left, timezone.utc).isoformat(timespec="seconds")
+                            write_check(eta=end, eta_latest=end)
+                            print("  about %d minute(s) left" % max(1, round(left / 60.0)), flush=True)
                     else:
                         print("  meter now %g%%, %g of %d point(s) measured" % (v, v - st["gun"], a.points), flush=True)
                 append(a.run, {"type": "meter", "t": rec["t_end"], "five_hour": st["max"], "note": "reply"})
