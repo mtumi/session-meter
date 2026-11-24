@@ -11,11 +11,19 @@ A Claude Code skill that measures what a piece of work costs on Claude's 5-hour 
 
 ## The problem
 
-Anything that plans work against the meter, such as a daily job that has to stay under 70% of the session, needs to know what a unit of work costs in percent. The tools report tokens and dollars. The meter reports a whole number. Nobody publishes how one becomes the other, the answer can differ by plan and by model, and it can change without notice. So the conversion has to be measured, and measured again when things change.
+Anything that plans work against the meter, such as a daily job that has to stay under 70% of the session, needs to know what a unit of work costs in percent. The tools report tokens and dollars. The meter reports a whole number.
+
+Nobody publishes how one becomes the other, the answer can differ by plan and by model, and it can change without notice. So the conversion has to be measured, and measured again when things change.
 
 ## How it works
 
-You start from a quiet account and run small jobs, several at a time. Every reply from Claude carries the account's current 5-hour figure (the response header `anthropic-ratelimit-unified-5h-utilization`), so each job is also a fresh, live reading of the meter, at no extra cost. When the meter first moves up a point, that is the starting gun: the work before it is thrown away, since the run started partway into a point. When it moves up the next point, that is the end. The work between the two is exactly one point. A quick run therefore costs up to one point to reach the starting gun plus the one point measured: about 2 points. A spending cap (3 points by default, `--max-points`) stops the run wherever it is, for example if something else on the account is using the meter at the same time. Repeating quick runs, rather than measuring more points in one run, shows whether the meter is steady. If runs of the same kind of work differ by more than about a quarter, something else was using the account, and the run is thrown out.
+You start from a quiet account and run small jobs, several at a time. Every reply from Claude carries the account's current 5-hour figure (the response header `anthropic-ratelimit-unified-5h-utilization`), so each job is also a fresh, live reading of the meter, at no extra cost.
+
+When the meter first moves up a point, that is the starting gun: the work before it is thrown away, since the run started partway into a point. When it moves up the next point, that is the end. The work between the two is exactly one point.
+
+A quick run therefore costs up to one point to reach the starting gun plus the one point measured: about 2 points. A spending cap (3 points by default, `--max-points`) stops the run wherever it is, for example if something else on the account is using the meter at the same time.
+
+Repeating quick runs, rather than measuring more points in one run, shows whether the meter is steady. If runs of the same kind of work differ by more than about a quarter, something else was using the account, and the run is thrown out.
 
 Do not read the meter with `claude /usage` during a run. Claude Code saves that figure and refreshes it at most every 5 minutes (we checked in version 2.1.236), so polling it every few seconds shows the meter jumping several points at a time on a 5-minute beat. The live figure in each reply has no such delay.
 
@@ -23,56 +31,120 @@ The script also tests an easy case first: whether points simply follow the dolla
 
 ## What testing taught us, and how to use it
 
-Each item says what we found, how we found it, and what to do with it, so you can apply it to your own tools. All of it was checked on a Max plan with Claude Code 2.1.236 in November 2026. None of it is documented by Anthropic, so it can change; the checks below are quick to rerun.
+Each item says what we found, how we found it, and what to do with it, so you can apply it to your own tools.
 
-**1. Where the live meter figure is.** Every reply from the Claude API to a subscription account carries the account's usage in response headers. The one that matters here is `anthropic-ratelimit-unified-5h-utilization`: the 5-hour session as a fraction with two decimals, so `"0.69"` means 69%. Its neighbours are `anthropic-ratelimit-unified-5h-reset` (when the session resets, in seconds since 1970), `anthropic-ratelimit-unified-5h-status` (`allowed` or not) and the same three for the weekly limit (`-7d-`). Claude Code prints the headers when the environment variable `ANTHROPIC_LOG` is set to `debug`. To see it yourself (this spends a tiny amount of meter):
+All of it was checked on a Max plan with Claude Code 2.1.236 in November 2026. None of it is documented by Anthropic, so it can change; the checks below are quick to rerun.
+
+**1. Where the live meter figure is.** Every reply from the Claude API to a subscription account carries the account's usage in response headers. The one that matters here is `anthropic-ratelimit-unified-5h-utilization`: the 5-hour session as a fraction with two decimals, so `"0.69"` means 69%.
+
+Its neighbours are `anthropic-ratelimit-unified-5h-reset` (when the session resets, in seconds since 1970), `anthropic-ratelimit-unified-5h-status` (`allowed` or not) and the same three for the weekly limit (`-7d-`).
+
+Claude Code prints the headers when the environment variable `ANTHROPIC_LOG` is set to `debug`. To see it yourself (this spends a tiny amount of meter):
 
 ```bash
 echo "Say OK." | ANTHROPIC_LOG=debug claude -p --model haiku | grep -o 'unified-5h-utilization[^,]*'
 ```
 
-Two things to know when you parse it. The debug log goes to standard output, mixed in with the reply itself, so with `--output-format json` the result is the last line that starts with `{`, not the whole output; we lost one 8-minute run by parsing the whole output as JSON. And a single reply can print the header more than once; take the highest value.
+Two things to know when you parse it. The debug log goes to standard output, mixed in with the reply itself, so with `--output-format json` the result is the last line that starts with `{`, not the whole output; we lost one 8-minute run by parsing the whole output as JSON.
 
-**2. Why not `claude /usage`.** `/usage` shows a figure that Claude Code saves in its settings file (`~/.claude.json`, under `cachedUsageUtilization`, with the time it was fetched in `fetchedAtMs`). In version 2.1.236, Claude Code replaces that saved figure at most once every 300,000 milliseconds (5 minutes) and will show a saved figure up to an hour old. We saw this directly: asking `/usage` every 2 to 3 seconds, the saved fetch time stayed the same for 5 minutes 32 seconds, then the figure jumped from 63% to 64%. Polled fast, `/usage` therefore makes the meter look as if it moves several points at a time on a 5-minute beat. Our early runs were built on that wrong picture. To check your version, watch `fetchedAtMs` in `~/.claude.json` while asking `/usage` repeatedly. Other routes have their own limits: the usage endpoint behind `/usage` (`/api/oauth/usage`) is widely reported to refuse frequent requests (HTTP 429), the `rate_limit_event` lines in `--output-format stream-json` carry the status but not the percent, and the status line's `rate_limits` field is reported to update only when that session itself gets a reply.
+And a single reply can print the header more than once; take the highest value.
 
-**3. How the meter really moves.** Read live from replies on a quiet account, the meter moved one point at a time, whenever the spending reached the next point: 68% to 69% to 70% to 71%, 2 minutes 16 seconds and 2 minutes 33 seconds apart at a steady load. There is no fixed clock and no multi-point step. If you see jumps of 2 or more points, either your reader is delayed or something else on the account is spending.
+**2. Why not `claude /usage`.** `/usage` shows a figure that Claude Code saves in its settings file (`~/.claude.json`, under `cachedUsageUtilization`, with the time it was fetched in `fetchedAtMs`). In version 2.1.236, Claude Code replaces that saved figure at most once every 300,000 milliseconds (5 minutes) and will show a saved figure up to an hour old.
 
-**4. How to measure a point with the least spending.** Run work until the meter moves (the starting gun; the work before it is thrown away, because you started partway into a point), then until it moves again (the end). The work in between is exactly one point. That costs about 2 points: half a point on average to reach the starting gun, at most one, plus the point measured. Measure more points by running again, not by running longer: separate runs show whether the figure is steady, and each one stays cheap. Replies finish out of order when several jobs run at once, so an older, lower figure can arrive after a newer one; always keep the highest figure seen so far.
+We saw this directly: asking `/usage` every 2 to 3 seconds, the saved fetch time stayed the same for 5 minutes 32 seconds, then the figure jumped from 63% to 64%. Polled fast, `/usage` therefore makes the meter look as if it moves several points at a time on a 5-minute beat. Our early runs were built on that wrong picture.
 
-**5. Keep the account quiet, and know what "quiet" misses.** Any other use of the account during a measurement lands in the same meter. We first paused only the Claude Code sessions that were using the processor. That misses a session that is waiting for Claude's reply, which uses almost no processor while still spending meter, and it only checked once, at the start. One measurement was spoiled that way: the meter jumped 3 and 4 points at a time for the same work that moved it 2 elsewhere, which looks exactly like "peak hours drain faster" and cannot be told apart from it afterwards. So pause every session (`quiet pause --all`), and keep phone, web and voice off; they cannot be paused from a script. While a run is in progress, the prompt guard (`scripts/meter_guard.py`, a Claude Code prompt hook) stops any new prompt before it reaches Claude and asks whether to discard the run or wait.
+To check your version, watch `fetchedAtMs` in `~/.claude.json` while asking `/usage` repeatedly.
 
-**6. Things that broke unattended runs.** A run started by a scheduled task could not pause other sessions: the Claude desktop app's safety check refuses that without a person's go, so runs that pause sessions have to be started by hand (`scripts/peak_run.sh`). A scheduled task can also fire late: one set for 9am ran at 12:43pm, after the app had been closed, so every scheduled run should check the clock before measuring.
+Other routes have their own limits: the usage endpoint behind `/usage` (`/api/oauth/usage`) is widely reported to refuse frequent requests (HTTP 429), the `rate_limit_event` lines in `--output-format stream-json` carry the status but not the percent, and the status line's `rate_limits` field is reported to update only when that session itself gets a reply.
 
-**7. Make the promise and the code agree.** For a day, this page promised a quick run of 4 to 6 points while the code measured at least 3 points and two meter changes after the first one, spending 8 to 12. A hard spending cap (`--max-points`, default 3) now stops a run wherever it is, and the run prints its expected cost and time before it starts. If you build something that spends a user's meter, put the cap in the code, not just in the documentation.
+**3. How the meter really moves.** Read live from replies on a quiet account, the meter moved one point at a time, whenever the spending reached the next point: 68% to 69% to 70% to 71%, 2 minutes 16 seconds and 2 minutes 33 seconds apart at a steady load.
 
-**8. Results so far.** Off-peak, Sonnet 5.5, output-heavy short jobs, Max plan: about $1.16 to $1.36 of the dollar cost Claude Code reports per point of the 5-hour session, from five clean measurements on 2026-11-23 and 2026-11-24 (`runs/PEAK_VS_OFFPEAK.md`). The dollar figure is what Claude Code reports for each job, not money you pay; it is a convenient common unit for comparing kinds of work. No clean peak-hour measurement yet.
+There is no fixed clock and no multi-point step. If you see jumps of 2 or more points, either your reader is delayed or something else on the account is spending.
+
+**4. How to measure a point with the least spending.** Run work until the meter moves (the starting gun; the work before it is thrown away, because you started partway into a point), then until it moves again (the end). The work in between is exactly one point. That costs about 2 points: half a point on average to reach the starting gun, at most one, plus the point measured.
+
+Measure more points by running again, not by running longer: separate runs show whether the figure is steady, and each one stays cheap.
+
+Replies finish out of order when several jobs run at once, so an older, lower figure can arrive after a newer one; always keep the highest figure seen so far.
+
+**5. Keep the account quiet, and know what "quiet" misses.** Any other use of the account during a measurement lands in the same meter.
+
+We first paused only the Claude Code sessions that were using the processor. That misses a session that is waiting for Claude's reply, which uses almost no processor while still spending meter, and it only checked once, at the start.
+
+One measurement was spoiled that way: the meter jumped 3 and 4 points at a time for the same work that moved it 2 elsewhere, which looks exactly like "peak hours drain faster" and cannot be told apart from it afterwards.
+
+So pause every session (`quiet pause --all`), and keep phone, web and voice off; they cannot be paused from a script.
+
+While a run is in progress, the prompt guard (`scripts/meter_guard.py`, a Claude Code prompt hook) stops any new prompt before it reaches Claude and asks whether to discard the run or wait.
+
+**6. Things that broke unattended runs.** A run started by a scheduled task could not pause other sessions: the Claude desktop app's safety check refuses that without a person's go, so runs that pause sessions have to be started by hand (`scripts/peak_run.sh`).
+
+A scheduled task can also fire late: one set for 9am ran at 12:43pm, after the app had been closed, so every scheduled run should check the clock before measuring.
+
+**7. Make the promise and the code agree.** For a day, this page promised a quick run of 4 to 6 points while the code measured at least 3 points and two meter changes after the first one, spending 8 to 12.
+
+A hard spending cap (`--max-points`, default 3) now stops a run wherever it is, and the run prints its expected cost and time before it starts.
+
+If you build something that spends a user's meter, put the cap in the code, not just in the documentation.
+
+**8. Results so far.** Off-peak, Sonnet 5.5, output-heavy short jobs, Max plan: about $1.16 to $1.36 of the dollar cost Claude Code reports per point of the 5-hour session, from five clean measurements on 2026-11-23 and 2026-11-24 (`runs/PEAK_VS_OFFPEAK.md`).
+
+The dollar figure is what Claude Code reports for each job, not money you pay; it is a convenient common unit for comparing kinds of work. No clean peak-hour measurement yet.
 
 ## Related tools
 
-[ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra. session-meter does the measurement on demand, in one sitting, with a controlled workload and your other sessions paused. That costs about 2 to 4 points, and afterwards Claude talks in percent of the 5-hour session. Because you choose when it runs, you can also measure the busy weekday window and off-peak separately with the same work, and see whether time of day changes the figure (see Time of day). If you can wait a few days and would rather not spend the points, ccmeter is the cheaper route.
+[ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra.
+
+session-meter does the measurement on demand, in one sitting, with a controlled workload and your other sessions paused. That costs about 2 to 4 points, and afterwards Claude talks in percent of the 5-hour session.
+
+Because you choose when it runs, you can also measure the busy weekday window and off-peak separately with the same work, and see whether time of day changes the figure (see Time of day).
+
+If you can wait a few days and would rather not spend the points, ccmeter is the cheaper route.
 
 ## Our strategy
 
-Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do. Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused, and ideally run it twice, once at a busy weekday time and once off-peak (see Time of day). The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
+Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do.
+
+Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused, and ideally run it twice, once at a busy weekday time and once off-peak (see Time of day). The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
 
 ## Time of day
 
-Anthropic has said the 5-hour session can drain faster at busy times. In March 2026 it announced that on weekdays from 5am to 11am Pacific time (8am to 2pm Eastern, 1pm to 7pm UTC in winter) the session limit would drain faster, with the weekly limit unchanged. Reports in May 2026 say it removed that peak-hour reduction for Claude Code on Pro and Max plans, but the same wording has been reported to remain for other products, and we could not find Anthropic's own current statement. So treat it as unknown for your plan. The skill records the local time, the day and the time zone with every run. If you want the full picture, run the standard tier twice: once during the weekday window above and once overnight or on a weekend, and compare the cost per point. If the two agree, the meter does not care about time of day for you. If they differ, quote both. Check Anthropic's help pages for the current rule.
+Anthropic has said the 5-hour session can drain faster at busy times. In March 2026 it announced that on weekdays from 5am to 11am Pacific time (8am to 2pm Eastern, 1pm to 7pm UTC in winter) the session limit would drain faster, with the weekly limit unchanged.
+
+Reports in May 2026 say it removed that peak-hour reduction for Claude Code on Pro and Max plans, but the same wording has been reported to remain for other products, and we could not find Anthropic's own current statement. So treat it as unknown for your plan.
+
+The skill records the local time, the day and the time zone with every run. If you want the full picture, run the standard tier twice: once during the weekday window above and once overnight or on a weekend, and compare the cost per point.
+
+If the two agree, the meter does not care about time of day for you. If they differ, quote both. Check Anthropic's help pages for the current rule.
 
 ## Our testing
 
 This is an early release. What has and has not been checked, as of 2026-11-24:
 
 - **Checked on made-up data:** the fitting logic recovered a known cost per point to within a few percent, and its steadiness and dollar-cost checks fired when they should.
-- **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points. On average, one point of the 5-hour session took about 42,000 output tokens of these jobs, plus about 21,000 tokens written to the cache and 36,000 read from it, and the two points were 16% apart. That count leaves out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so a point is at least this much work and possibly up to twice as much. The record is in `runs/quick-2026-11-18.jsonl`.
-- **Automatic run, 2026-11-23:** the automatic `run` command, with `quiet pause` and `quiet resume`, on a Max plan with Sonnet 5.5 jobs and the measuring session idle. 400 jobs, no errors; one busy session paused and restarted. Three intervals of $1.33 of reported cost per point, within 1% of each other. That is about 1.7 times the hand run's figure, which fits the hand run counting the measuring session's own turns. The meter appeared to move 2 points at a time, exactly every 5 minutes. That turned out to be the 5-minute saved figure behind `claude /usage`, not the meter (see the next item). The cost per point still holds, because it is averaged over many 5-minute stretches.
-- **How the meter really moves, 2026-11-24:** while `claude /usage` was asked for the figure every 2 to 3 seconds, the saved copy in Claude Code's settings file kept the same fetch time for 5 minutes 32 seconds, then jumped from 63% to 64%; Claude Code's code limits that refresh to once every 300,000 milliseconds. Every reply, by contrast, carries the live figure. Reading it from each job's reply on a quiet account (4 workers, 156 jobs, 8 minutes, just after 2pm Eastern on a weekday), the meter moved one point at a time, 68% to 71%, 2 minutes 16 seconds and 2 minutes 33 seconds apart, at $1.19 and $1.36 of reported cost per point. That agrees with the earlier off-peak runs. The record is in `runs/live-headers-2026-11-24.jsonl`.
-- **The new automatic run, 2026-11-24:** replaying those recorded replies through it, the run found the starting gun at 69%, stopped at 70% after 2 points in all, and reported $1.16 per point, matching a count by hand. Checked on made-up readings: when the meter jumps 2 points at once (other usage on the account) it stops at the 3-point cap; when a reply carries no usage figure it says so and stops before spending. First real run the same afternoon (`runs/quick-2026-11-24-1419.jsonl`, quiet account, 4 workers, 52 jobs): starting gun at 74%, stopped at 75%, 2 points used in all, $1.18 of reported cost per point, in line with the readings above.
+- **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points.
+
+  On average, one point of the 5-hour session took about 42,000 output tokens of these jobs, plus about 21,000 tokens written to the cache and 36,000 read from it, and the two points were 16% apart.
+
+  That count leaves out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so a point is at least this much work and possibly up to twice as much. The record is in `runs/quick-2026-11-18.jsonl`.
+- **Automatic run, 2026-11-23:** the automatic `run` command, with `quiet pause` and `quiet resume`, on a Max plan with Sonnet 5.5 jobs and the measuring session idle. 400 jobs, no errors; one busy session paused and restarted. Three intervals of $1.33 of reported cost per point, within 1% of each other. That is about 1.7 times the hand run's figure, which fits the hand run counting the measuring session's own turns.
+
+  The meter appeared to move 2 points at a time, exactly every 5 minutes. That turned out to be the 5-minute saved figure behind `claude /usage`, not the meter (see the next item). The cost per point still holds, because it is averaged over many 5-minute stretches.
+- **How the meter really moves, 2026-11-24:** while `claude /usage` was asked for the figure every 2 to 3 seconds, the saved copy in Claude Code's settings file kept the same fetch time for 5 minutes 32 seconds, then jumped from 63% to 64%; Claude Code's code limits that refresh to once every 300,000 milliseconds.
+
+  Every reply, by contrast, carries the live figure. Reading it from each job's reply on a quiet account (4 workers, 156 jobs, 8 minutes, just after 2pm Eastern on a weekday), the meter moved one point at a time, 68% to 71%, 2 minutes 16 seconds and 2 minutes 33 seconds apart, at $1.19 and $1.36 of reported cost per point. That agrees with the earlier off-peak runs. The record is in `runs/live-headers-2026-11-24.jsonl`.
+- **The new automatic run, 2026-11-24:** replaying those recorded replies through it, the run found the starting gun at 69%, stopped at 70% after 2 points in all, and reported $1.16 per point, matching a count by hand.
+
+  Checked on made-up readings: when the meter jumps 2 points at once (other usage on the account) it stops at the 3-point cap; when a reply carries no usage figure it says so and stops before spending.
+
+  First real run the same afternoon (`runs/quick-2026-11-24-1419.jsonl`, quiet account, 4 workers, 52 jobs): starting gun at 74%, stopped at 75%, 2 points used in all, $1.18 of reported cost per point, in line with the readings above.
 - **Spending, corrected 2026-11-24:** the published versions from 2026-11-23 measured at least 3 points and two meter changes after the first one, so a quick run really spent 8 to 12 points, not the 4 to 6 this page promised then. The current run measures one point after the starting gun and stops at a 3-point cap.
 - **Pausing other sessions, 2026-11-24:** a peak-hour run spent while other sessions were working was not paused, because the busy check only counts processor use, and a session waiting on a reply from Claude uses almost none. The skill now pauses every session (`quiet pause --all`), with a notification when it pauses and resumes them.
 - **Not yet measured:** whether the meter weighs simultaneous jobs differently from one at a time (run the same work with 1 worker and with 8 and compare), and whether peak hours cost more per point (only off-peak runs so far are clean).
 - **Not tested:** other plans, other models, Windows, Linux.
-- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big. The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation. The line asks Claude to give percent alongside its usual estimate in tokens or time, rather than instead of it, so it works with Claude's habits instead of against them.
+- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big.
+
+  The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation. The line asks Claude to give percent alongside its usual estimate in tokens or time, rather than instead of it, so it works with Claude's habits instead of against them.
 
 A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
 
@@ -128,9 +200,13 @@ Then ask Claude to run the session-meter skill.
 - **2026-11-24:** while a measurement runs, a new prompt in another session is stopped and asks whether to discard the measurement or wait. You get a Mac notification when sessions are paused and resumed. `scripts/peak_run.sh` starts a run that pauses every other session, and `runs/PEAK_VS_OFFPEAK.md` keeps a running comparison of peak and off-peak runs.
 - **2026-11-24:** `scripts/peak_run.sh` finds its own folder, so it runs on any computer.
 - **2026-11-24:** correction. Since 2026-11-23 a quick run could spend 8 to 12 points, not the 4 to 6 this page promised, because it measured at least 3 points and two meter changes after the first change.
-- **2026-11-24:** what testing showed, and what changed because of it. `claude /usage` returns a figure Claude Code saves and refreshes at most every 5 minutes. Read every few seconds, it made the meter look as if it moved 2 points at a time on a 5-minute beat, and the 2026-11-23 "counts points, not ticks" and "step size from the second change" changes were built on that. The live figure in each reply moves one point at a time. So the automatic run now reads the meter from each job's own reply and no longer polls `/usage`; it measures from the first move (the starting gun) to the next point and stops at a 3-point cap (`--max-points`). A quick run now costs about 2 points. Cost-per-point figures from earlier runs still hold, since the saved figure only delays the number.
+- **2026-11-24:** what testing showed, and what changed because of it. `claude /usage` returns a figure Claude Code saves and refreshes at most every 5 minutes. Read every few seconds, it made the meter look as if it moved 2 points at a time on a 5-minute beat, and the 2026-11-23 "counts points, not ticks" and "step size from the second change" changes were built on that.
+
+  The live figure in each reply moves one point at a time. So the automatic run now reads the meter from each job's own reply and no longer polls `/usage`; it measures from the first move (the starting gun) to the next point and stops at a 3-point cap (`--max-points`). A quick run now costs about 2 points. Cost-per-point figures from earlier runs still hold, since the saved figure only delays the number.
 - **2026-11-24:** what testing showed: the busy-session check misses sessions waiting on a reply from Claude, so a run could be spent alongside them. The skill now pauses every other session (`quiet pause --all`).
-- **2026-11-24:** new section, "What testing taught us, and how to use it": where the live meter figure is and how to read it, why `/usage` is delayed and how to check it, how the meter moves, the cheapest way to measure a point, what quiet-account checks miss, what breaks unattended runs, and results so far. The time estimate now uses the last measured cost per point and gives a typical and a longest time; the prompt guard's "minutes left" now comes from the running measurement instead of a fixed 15 minutes.
+- **2026-11-24:** new section, "What testing taught us, and how to use it": where the live meter figure is and how to read it, why `/usage` is delayed and how to check it, how the meter moves, the cheapest way to measure a point, what quiet-account checks miss, what breaks unattended runs, and results so far.
+
+  The time estimate now uses the last measured cost per point and gives a typical and a longest time; the prompt guard's "minutes left" now comes from the running measurement instead of a fixed 15 minutes.
 - **2026-11-24:** the CLAUDE.md rule now asks for percent alongside Claude's usual estimate in tokens or time, rather than instead of it.
 
 ## License and disclaimer
