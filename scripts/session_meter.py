@@ -350,7 +350,7 @@ def do_resume():
 def cmd_estimate(a):
     path = os.path.join(RUNS, "calibration.json")
     if not os.path.exists(path):
-        print("No calibration yet. Run the quick tier and 'fit' first.")
+        print("No calibration yet. Run a measurement and 'fit' first.")
         return 1
     c = json.load(open(path))
     pts = a.cost_usd * c["points_per_usd"]

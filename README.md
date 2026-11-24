@@ -12,7 +12,7 @@ Nobody publishes how one becomes the other, the answer can differ by plan and by
 
 - The meter shows whole percents, and its weights are not published. Token counts do not tell you what a job will cost on it, and the rules can change at any time.
 - Each time the meter moves from N to N+1, the work done since the previous move cost exactly one point. The skill runs small jobs, reads the live meter from each job's own reply, and divides the recorded work between moves by the points.
-- It runs in two tiers. A quick one, about 2 points of the meter and never more than 3 unless you raise the cap, gives a cost per point for one kind of work. A standard one, about 8 to 12 points, separates input, rereading and output, and checks a second model.
+- One run measures one kind of work and costs about 2 points of the meter, never more than 3 unless you raise the cap. To compare kinds of work, such as heavy rereading or another model, run it once for each.
 - Everything is one Python script that uses only the standard library. No packages, no network calls of its own.
 
 ## Install
@@ -52,7 +52,7 @@ Then ask Claude to run the session-meter skill.
 
 ## Questions
 
-**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
+**Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
 
 **Can I leave other work running?** The clean mode wants nothing else running. The skill can pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
 
@@ -76,9 +76,7 @@ The script also tests an easy case first: whether points simply follow the dolla
 
 ### General
 
-Run the quick tier whenever you want a figure, and keep the account otherwise idle while you do.
-
-Save the standard tier for a time when nobody, on any device, is using Claude at all, such as overnight with scheduled tasks paused, and ideally run it twice, once at a busy weekday time and once off-peak (see Time of day). The standard tier is the one that needs the whole account to itself, because it takes the most meter and the longest clock time.
+Run it whenever you want a figure, with nothing else using Claude on any device while it runs. Repeat it a few times to see whether the figure is steady.
 
 ### Time of day
 
@@ -86,7 +84,7 @@ Anthropic has said the 5-hour session can drain faster at busy times. In March 2
 
 Reports in May 2026 say it removed that peak-hour reduction for Claude Code on Pro and Max plans, but the same wording has been reported to remain for other products, and we could not find Anthropic's own current statement. So treat it as unknown for your plan.
 
-The skill records the local time, the day and the time zone with every run. If you want the full picture, run the standard tier twice: once during the weekday window above and once overnight or on a weekend, and compare the cost per point.
+The skill records the local time, the day and the time zone with every run. If you want the full picture, run it during the weekday window above and again overnight or on a weekend, and compare the cost per point.
 
 If the two agree, the meter does not care about time of day for you. If they differ, quote both. Check Anthropic's help pages for the current rule.
 
@@ -126,7 +124,7 @@ As of 2026-11-24, on a Max plan with Sonnet 5.5 jobs.
 
 - Peak hours: no clean peak-hour run yet.
 - Pausing every session (`quiet pause --all`) and `scripts/peak_run.sh` on a real run.
-- The standard tier (input, rereading and output separated; a second model) and passive mode.
+- Other kinds of work (heavy rereading, a second model) and passive mode.
 - Whether jobs run at the same time are weighed differently from one at a time.
 - Other plans, other models, Windows, Linux.
 

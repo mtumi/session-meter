@@ -27,15 +27,15 @@ The manual way:
 3. Run one small job, then read the meter twice. Repeat. Keep each job to about a tenth to a third of a point, so a tick is located within one job. Start rough, estimate the size of one point, then size jobs to fit.
    - Output-heavy: `session_meter.py job --run <name> --mix output-heavy --model <full model id> --prompt-file workloads/output-heavy.md`
    - Reread-heavy: add `--mix reread-heavy --prompt-file workloads/reread-heavy.md --filler-words 30000`
-4. After the first move (the starting gun), keep going until the meter has moved the planned number of points (below).
+4. After the first move (the starting gun), keep going until the meter has moved one more point.
 5. `session_meter.py fit --run <name>`.
 
 Run jobs one at a time. Name the model in full; the script refuses to trust a reply from a different model.
 
-## Tiers
-- **Quick, about 2 points, never more than 3:** one kind of work; up to one point to reach the starting gun (thrown away), then one point measured. The spending cap (3 by default) stops the run wherever it is. Steadiness comes from repeating quick runs, not from more points in one run. Gives one cost per point. Do this now.
-- **Standard, about 8 to 12 points:** output-heavy, reread-heavy and a second model, plus a held-back job to check the fit. Schedule it for a time when nobody is using Claude at all.
-- **Dollar-cost test:** the headless report includes a dollar cost. If points per dollar come out the same for every kind of work, one number per plan is enough and the quick tier is all you need.
+## What a run measures
+- **One run, about 2 points, never more than 3:** one kind of work; up to one point to reach the starting gun (thrown away), then one point measured. The spending cap (3 by default) stops the run wherever it is. Steadiness comes from repeating runs, not from more points in one run.
+- **Other kinds of work:** run once per kind, with its own `--mix` and `--prompt-file` (reread-heavy: `workloads/reread-heavy.md` with `--filler-words 30000`; another model: `--model`).
+- **Dollar-cost test:** the headless report includes a dollar cost. If points per dollar come out the same for every kind of work, one number per plan is enough.
 
 ## Stop rules
 - Intervals for the same kind of work differ by more than about 25%: something else is using the account, or the meter is not linear. Stop, switch to clean, repeat.
