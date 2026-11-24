@@ -1,0 +1,19 @@
+Measuring. First a pilot job to read the meter and estimate the time.
+Pilot: one job takes 12s and reports $0.026. Meter at 73%.
+Plan: 4 workers. Run until the meter changes (the starting gun; up to one point, not measured), then measure 1 point(s). Spending cap: 3 points; the run stops there whatever happens.
+Estimated time: up to about 3 minutes (at an assumed $0.80 per point).
+  starting gun: meter now 74% (measuring from here)
+  meter now 75%, 1 of 1 point(s) measured
+Stopping jobs (letting in-flight ones finish)...
+Points used in all: 2 (start 73%, end 75%).
+
+Fitting.
+Run quick-2026-11-24-1419: 52 jobs, 52 meter readings, 2 ticks, 1 full intervals
+
+Per interval (cost of one meter point):
+  74 to 75  mix output-fast    cost $1.180 (+/- 0.027)  in 88, cache-write 84145, cache-read 144716, out 42116
+
+Per mix (mean of its intervals), with steadiness check:
+  output-fast    1 interval(s), $1.180 per point, single interval, no steadiness check yet
+
+Saved runs/calibration.json: about 0.8% of the 5-hour session per dollar of reported cost.

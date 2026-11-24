@@ -709,7 +709,7 @@ def main():
     s.add_argument("--max-points", type=int, default=3, help="spending cap in points of the 5-hour session (default 3)")
     s.add_argument("--no-guard", action="store_true", help="let other sessions work during the run (for tests that do not need a quiet account)")
     s.add_argument("--workers", type=int, default=4, help="jobs at once")
-    s.add_argument("--expect-usd-per-point", type=float, default=0.8, help="rough guess, only for the time estimate")
+    s.add_argument("--expect-usd-per-point", type=float, default=1.3, help="rough guess, only for the time estimate")
     s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")
     s.set_defaults(f=cmd_run)
     s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")

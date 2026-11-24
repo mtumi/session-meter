@@ -10,3 +10,4 @@ One row per run, appended by the run itself. No conclusion until there are at le
 | offpeak-2026-11-23 | Mon 11:13pm | off-peak | 4 intervals within 3% | 1.36 | 2 | yes | |
 | peak-2026-11-24 | Tue 12:43pm | peak | 0.67 (one interval) | 0.67 | 4 | no | Several other sessions were active during it and none were paused (the busy check counts processor use only, so sessions waiting on a reply were missed). Also stopped early on a one-reading flicker (fixed 2026-11-24); no steadiness check. Leave out of averages. |
 | live-headers-2026-11-24 | Tue 2:05pm | off-peak (just after the window) | 1.19, 1.36 | 1.28 | 1 | yes | Live reply readings, quiet account; hand-built load, not the run command. |
+| quick-2026-11-24-1419 | Tue 2:19pm | off-peak (just after the window) | 1.18 | 1.18 | 1 | yes | First real run of the live-reading run command; 2 points used. |
