@@ -56,7 +56,7 @@ Then ask Claude to run the session-meter skill.
 
 **Can I leave other work running?** The clean mode wants nothing else running. The skill will pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
 
-**Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
+**When should I run it again?** When something changes what a point is worth: a new plan, a different model or kind of work, a new Claude Code version, or an announced change to usage limits. Also if Claude's estimates in percent stop matching what the meter shows. A run costs about 2 points, so rerunning is cheap.
 
 ## How it works
 
