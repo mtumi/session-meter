@@ -1,6 +1,6 @@
 #!/bin/sh
 # One peak-versus-off-peak measuring run, started by hand. Pauses every other Claude Code
-# session for about 15 minutes and resumes them at the end, even if the run fails.
+# session until the run ends (a few minutes; the run prints its estimate) and resumes them, even if the run fails.
 KIND=${1:-peak}
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 RUN=$KIND-$(date +%Y-%m-%d-%H%M)

@@ -86,7 +86,11 @@ def main():
         prompt = ""
     d = live_check()
     if d:
-        mins = max(1, int(15 - age_seconds(d.get("started")) / 60))
+        # Time left comes from the run itself: it writes its expected end ("eta") when it starts and
+        # updates it at the starting gun. Before the run has started there is no estimate yet.
+        left = -age_seconds(d.get("eta")) if d.get("eta") else None
+        when = ("about %d more minute(s)" % max(1, int(left / 60 + 0.99))) if left is not None and left > 0 \
+            else ("finishing now" if left is not None else "time left not known yet")
         if prompt == "1":
             d["discarded"] = True
             json.dump(d, open(CHECK, "w"))
@@ -103,10 +107,10 @@ def main():
             block("Meter check stopped and marked discarded. Paused sessions are running again. "
                   "Send your message again.")
         if prompt == "2":
-            block("OK, the check keeps running, about %d more minute(s). A notification says when it ends." % mins)
-        block("I'm running a meter check now (started %s, about %d more minute(s)). Reply:\n"
+            block("OK, the check keeps running, %s. A notification says when it ends." % when)
+        block("I'm running a meter check now (started %s, %s). Reply:\n"
               "1. Work now and discard this check in progress\n"
-              "2. Wait until it's done" % (clock(d.get("started")), mins))
+              "2. Wait until it's done" % (clock(d.get("started")), when))
     # No check running: tell a session that was paused, once, on its first prompt after the check.
     if os.path.exists(LAST_CHECK):
         try:

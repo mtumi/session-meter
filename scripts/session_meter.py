@@ -302,7 +302,7 @@ def cmd_quiet(a):
         subprocess.Popen(["sh", "-c", "sleep 5400; kill -CONT %s 2>/dev/null" % " ".join(str(x["pid"]) for x in paused)],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     notify("Paused %d Claude Code session(s) for a meter check. They resume by themselves when it ends "
-           "(about 15 minutes). Anything you type in them waits until then." % len(paused))
+           "when the meter check ends. Anything you type in them waits until then." % len(paused))
     print("Paused %d session(s):" % len(paused))
     for x in paused:
         print("  %s  (process %d)" % (x["folder"], x["pid"]))
@@ -444,17 +444,28 @@ def cmd_run(a):
         print("The session is at %g%%, too close to its limit for a run that may spend up to %d points. "
               "Try after the reset." % (start, a.max_points), flush=True)
         return 1
-    rate = a.workers * jcost / jsecs
-    est_min = (1 + a.points) * a.expect_usd_per_point / rate / 60.0
+    rate = a.workers * jcost / jsecs  # dollars of reported cost per second, all workers together
+    # Cost of one point for the estimate: the last measured figure if there is one, else the guess.
+    per_pt, basis = a.expect_usd_per_point, "a guess; nothing measured yet"
+    try:
+        cal = json.load(open(os.path.join(RUNS, "calibration.json")))
+        if cal.get("cost_usd_per_point"):
+            per_pt, basis = cal["cost_usd_per_point"], "the last measured figure, %s" % cal.get("date", "?")
+    except (OSError, ValueError):
+        pass
+    # Reaching the starting gun takes half a point on average and a whole point at most.
+    typ_min = (0.5 + a.points) * per_pt / rate / 60.0
+    max_min = (1 + a.points) * per_pt / rate / 60.0
     print("Pilot: one job takes %.0fs and reports $%.3f. Meter at %g%%." % (jsecs, jcost, start), flush=True)
     print("Plan: %d workers. Run until the meter changes (the starting gun; up to one point, not measured), "
           "then measure %d point(s). Spending cap: %d points; the run stops there whatever happens."
           % (a.workers, a.points, a.max_points), flush=True)
-    print("Estimated time: up to about %.0f minutes (at an assumed $%.2f per point)." % (est_min, a.expect_usd_per_point),
-          flush=True)
+    print("Estimated time: about %d minute(s), at most about %d, at $%.2f per point (%s)." % (
+        max(1, round(typ_min)), max(1, round(max_min)), per_pt, basis), flush=True)
     t_start = time.time()
     if not a.no_guard:  # meter_guard.py answers new prompts with a choice while this marker exists
-        write_check(run_pid=os.getpid(), run=a.run, started=now())
+        write_check(run_pid=os.getpid(), run=a.run, started=now(),
+                    eta=datetime.fromtimestamp(time.time() + max_min * 60, timezone.utc).isoformat(timespec="seconds"))
     discarded = {"yes": False}
 
     def on_term(signum, frame):
@@ -481,6 +492,9 @@ def cmd_run(a):
                     if st["gun"] is None:
                         st["gun"] = v
                         print("  starting gun: meter now %g%% (measuring from here)" % v, flush=True)
+                        if not a.no_guard:  # the rest is now known: the points still to measure
+                            left = a.points * per_pt / rate
+                            write_check(eta=datetime.fromtimestamp(time.time() + left, timezone.utc).isoformat(timespec="seconds"))
                     else:
                         print("  meter now %g%%, %g of %d point(s) measured" % (v, v - st["gun"], a.points), flush=True)
                 append(a.run, {"type": "meter", "t": rec["t_end"], "five_hour": st["max"], "note": "reply"})
@@ -709,7 +723,7 @@ def main():
     s.add_argument("--max-points", type=int, default=3, help="spending cap in points of the 5-hour session (default 3)")
     s.add_argument("--no-guard", action="store_true", help="let other sessions work during the run (for tests that do not need a quiet account)")
     s.add_argument("--workers", type=int, default=4, help="jobs at once")
-    s.add_argument("--expect-usd-per-point", type=float, default=1.3, help="rough guess, only for the time estimate")
+    s.add_argument("--expect-usd-per-point", type=float, default=1.3, help="guess for the time estimate when no run has been measured yet")
     s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")
     s.set_defaults(f=cmd_run)
     s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")
