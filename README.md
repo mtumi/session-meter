@@ -159,6 +159,8 @@ Other routes fall short too: the endpoint behind `/usage` (`/api/oauth/usage`) i
 
 The fix was to ask for percent of the session alongside any estimate in tokens or time. That doesn't fight the old habit, and it turns the old habit into the trigger: whenever Claude reaches for tokens, the percent comes with it. Retested, both kinds of question gave percent.
 
+**5. Measure every model you plan to use.** This one was more an oversight than a discovery: every model uses up the session at a different rate, and we first measured only Sonnet. A figure measured on one model doesn't carry over to another, so the skill now runs on your active model and saves a separate figure for each.
+
 ## Related tools
 
 [ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra.
