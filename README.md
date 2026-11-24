@@ -114,7 +114,7 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 - **Real run:** starting gun at 74%, stopped at 75%, 2 points used, about 42,000 output tokens per point (`runs/quick-2026-11-24-1419.jsonl`).
 - **Run replayed on recorded replies:** found the same point as a count by hand.
 - **Spending cap, and replies with no usage figure:** both stop the run as they should, on made-up readings.
-- **Prompt guard:** both replies, discarding a run, and the time shown, against a simulated run. Not yet during a real run.
+- **Prompt guard:** on during the real run and cleared afterwards. Both replies, discarding a run and the time shown were checked against a simulated run; nobody typed a prompt during the real one.
 - **Per-point calculation:** recovered a known figure within a few percent, on made-up data.
 - **Earlier runs read through `/usage`** (2026-11-18 by hand, 2026-11-23 automatic): about 47,000 to 49,000 output tokens per point on 2026-11-23, in line with the live figures. Their 2-point steps were the `/usage` delay.
 - **Percent in estimates:** with the CLAUDE.md line, Claude gave percent for both a usage question and a "how long will this take" question.
