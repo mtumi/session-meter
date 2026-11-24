@@ -196,6 +196,7 @@ FROZEN = os.path.join(RUNS, "frozen.json")
 # Shared with scripts/meter_guard.py (a prompt hook): CHECK exists while a check is in progress,
 # LAST_CHECK records the latest one so a resumed session can be told it was paused.
 CHECK = os.path.expanduser("~/.claude/session-meter-check.json")
+STEP_FILE = os.path.expanduser("~/.claude/session-meter-step.json")  # points per display change, from the last run
 LAST_CHECK = os.path.expanduser("~/.claude/session-meter-last-check.json")
 
 
@@ -436,11 +437,27 @@ def cmd_run(a):
         return 1
     est_cost_pt = a.expect_usd_per_point
     secs_per_point = est_cost_pt / (a.workers * jcost / jsecs)
-    total_min = (a.points + 1) * secs_per_point / 60.0
+    total_min = min(a.max_points, 2 * (a.steps + 1)) * secs_per_point / 60.0
+    known_step = None
+    try:
+        known_step = json.load(open(STEP_FILE)).get("step")
+    except (OSError, ValueError):
+        pass
+    if known_step and known_step * (a.steps + 1) > a.max_points:
+        print("On this account the meter moves %d points at a time, so a run of %d step(s) can cost up to %d points, "
+              "over the %d-point cap. Raise --max-points to at least %d if you accept that, or measure by hand."
+              % (known_step, a.steps, known_step * (a.steps + 1), a.max_points, known_step * (a.steps + 1)), flush=True)
+        return 1
+    if r0["five_hour"] + a.max_points > 100:
+        print("The session is at %d%%, too close to its limit for a run that may spend up to %d points. "
+              "Try after the reset." % (r0["five_hour"], a.max_points), flush=True)
+        return 1
     print("Pilot: one job takes %.0fs and reports $%.3f; a poll takes %.0fs." % (jsecs, jcost, r0["poll_seconds"]), flush=True)
-    print("Plan: %d workers, finding the first tick (up to one step of the meter) then at least %d points, "
-          "and never fewer than two steps." % (a.workers, a.points), flush=True)
-    print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first point)." % (
+    print("Plan: %d workers. First find where the meter changes (this costs up to one step of the meter and is "
+          "not measured), then measure %d full step(s)%s. Spending cap: %d points of the 5-hour session; the run "
+          "stops there whatever happens." % (a.workers, a.steps,
+                                            (" and at least %d points" % a.points) if a.points else "", a.max_points), flush=True)
+    print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first step)." % (
         total_min, est_cost_pt), flush=True)
     t_start = time.time()
     # Mark the check as in progress (meter_guard.py answers new prompts with a choice while this exists).
@@ -492,8 +509,14 @@ def cmd_run(a):
                 if r["five_hour"] < state["last"]:
                     print("The meter dropped (a reset?). Stopping; discard this run.", flush=True)
                     break
+                spent = r["five_hour"] - r0["five_hour"]
                 if r["five_hour"] > state["last"]:
                     jump = r["five_hour"] - state["last"]
+                    if state["first"] is None and known_step and spent + known_step * a.steps > a.max_points:
+                        state["first"] = r["five_hour"]
+                        print("Finding the starting line cost %d points; measuring a %d-point step now would pass the "
+                              "%d-point cap. Stopping; nothing measured." % (spent, known_step * a.steps, a.max_points), flush=True)
+                        break
                     if state["first"] is None:
                         # The first change is not a full step (the run starts partway into one, and a
                         # fresh session can jump several points at once), so it does not set the step size.
@@ -502,26 +525,35 @@ def cmd_run(a):
                     else:
                         if state["step"] is None:
                             state["step"] = jump
-                            # At least two steps after the first tick, so steadiness can be checked.
-                            state["target"] = max(a.points, 2 * jump)
+                            try:
+                                json.dump({"step": jump, "t": now(), "run": a.run}, open(STEP_FILE, "w"))
+                            except OSError:
+                                pass
+                            # Measure --steps full steps after the first change (default 1: repeat runs, not
+                            # extra steps, check steadiness), and at least --points points if asked.
+                            state["target"] = max(a.points or 0, a.steps * jump)
                             if jump > 1:
                                 print("  The meter moves %d points at a time on this account. Measuring %d points "
-                                      "(%d steps) in all." % (jump, state["target"], -(-state["target"] // jump)), flush=True)
+                                      "(%d step%s) in all." % (jump, state["target"], -(-state["target"] // jump), "" if -(-state["target"] // jump) == 1 else "s"), flush=True)
                         state["tick_costs"].append(state["cost_since_tick"] / jump)
                         print("  step found: meter now %d%%, %d of %d points measured" % (
                             r["five_hour"], r["five_hour"] - state["first"], state["target"]), flush=True)
                     state["last"] = r["five_hour"]
                     state["cost_since_tick"] = 0.0
+                    if spent >= a.max_points and not (state["target"] and state["last"] - state["first"] >= state["target"]):
+                        print("Spending cap reached: %d points used (cap %d). Stopping with what was measured."
+                              % (spent, a.max_points), flush=True)
+                        break
                 per_pt = (sum(state["tick_costs"]) / len(state["tick_costs"])) if state["tick_costs"] else est_cost_pt
                 per_pt = per_pt or est_cost_pt
                 if state["first"] is None:
-                    done, left_pts = 0, a.points + 1
+                    done, left_pts = 0, a.steps + 1
                 else:
                     done = state["last"] - state["first"]
-                    left_pts = (state["target"] or a.points) - done - min(float(state["step"] or 1), state["cost_since_tick"] / per_pt)
+                    left_pts = (state["target"] or a.steps) - done - min(float(state["step"] or 1), state["cost_since_tick"] / per_pt)
                 mins = max(0.0, left_pts * per_pt / rate / 60.0)
                 print("  meter %d%%, points measured %d of %s, about $%.2f toward the next step, about %.0f min left%s" % (
-                    r["five_hour"], done, state["target"] if state["target"] else a.points,
+                    r["five_hour"], done, state["target"] if state["target"] else "?",
                     state["cost_since_tick"], mins,
                     ("  [%d job error(s)]" % state["errors"]) if state["errors"] else ""), flush=True)
             if time.time() - t_start > a.max_minutes * 60:
@@ -726,7 +758,9 @@ def main():
     s.add_argument("--run", required=True); s.add_argument("--mix", required=True)
     s.add_argument("--model", required=True, help="full model id")
     s.add_argument("--prompt"); s.add_argument("--prompt-file"); s.add_argument("--filler-words", type=int, default=0)
-    s.add_argument("--points", type=int, default=3, help="full points to measure after the first tick (quick tier: 3)")
+    s.add_argument("--steps", type=int, default=1, help="full steps of the meter to measure after the first change (default 1)")
+    s.add_argument("--max-points", type=int, default=6, help="spending cap in points of the 5-hour session (default 6)")
+    s.add_argument("--points", type=int, default=None, help="optional: measure at least this many points (raises the cost)")
     s.add_argument("--workers", type=int, default=4, help="jobs at once")
     s.add_argument("--expect-usd-per-point", type=float, default=0.8, help="rough guess, only for the time estimate")
     s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")

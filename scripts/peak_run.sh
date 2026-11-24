@@ -13,7 +13,7 @@ LOG="$REPO/runs/$RUN.log"
   python3 scripts/session_meter.py quiet pause --all --yes
   trap 'python3 scripts/session_meter.py quiet resume' EXIT
   python3 scripts/session_meter.py run --run "$RUN" --mix output-fast --model claude-sonnet-5-5 \
-    --prompt-file workloads/output-fast.md --points 3 --workers 4 --plan Max \
+    --prompt-file workloads/output-fast.md --workers 4 --plan Max \
     --note "$KIND run, started by hand, all other sessions paused"
   echo "=== end $(date)"
   claude -p --setting-sources "" "/usage" | head -5
