@@ -124,7 +124,7 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 **Not tested yet**
 
 - Peak hours: no clean peak-hour run yet.
-- Pausing every session (`quiet pause --all`) and `scripts/peak_run.sh` on a real run.
+- The pause command itself (`quiet pause --all`) and `scripts/peak_run.sh`. The real runs had everything else stopped by hand, so measuring on a quiet account is tested; the script doing the pausing is not.
 - Other kinds of work. A point is probably a different number of tokens when a job mostly rereads a long context, or runs on Opus instead of Sonnet; only the short Sonnet jobs above have been measured.
 - Running jobs one at a time. Every run so far ran 4 at once; the same work done one after another might use the meter differently.
 - Other plans, other models, Windows, Linux.
