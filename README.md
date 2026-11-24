@@ -126,9 +126,9 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 
 - Peak hours: no clean peak-hour run yet.
 - `scripts/peak_run.sh`, the one-line start for a run by hand.
-- Other kinds of work. A point is probably a different number of tokens when a job mostly rereads a long context, or runs on Opus instead of Sonnet; only the short Sonnet jobs above have been measured.
+- Other models and kinds of work. Bigger models use more meter per token (Fable most, then Opus, Sonnet, Haiku), so a point is fewer tokens on Opus than on Sonnet; how many fewer isn't measured. Nor is work that mostly rereads a long context.
 - Running jobs one at a time. Every run so far ran 4 at once; the same work done one after another might use the meter differently.
-- Other plans, other models, Windows, Linux.
+- Other plans, Windows, Linux.
 
 ## Learnings from testing
 
