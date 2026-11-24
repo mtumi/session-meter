@@ -151,21 +151,20 @@ Then ask Claude to run the session-meter skill.
 
 ## Changes
 
-- **2026-11-18:** first release.
-- **2026-11-23:** the automatic run counts points of the meter rather than ticks, since some meters move 2 points at a time. The skill now triggers on any job sizing, and after calibrating it offers a one-line CLAUDE.md rule so Claude keeps talking in percent.
-- **2026-11-24:** the step size comes from the meter's second change, not its first, which is never a full step. Calibration dates use local time.
-- **2026-11-24:** a meter change counts only when the next reading agrees, so a one-reading flicker no longer stops a run.
-- **2026-11-24:** while a measurement runs, a new prompt in another session is stopped and asks whether to discard the measurement or wait. You get a Mac notification when sessions are paused and resumed. `scripts/peak_run.sh` starts a run that pauses every other session, and `runs/PEAK_VS_OFFPEAK.md` keeps a running comparison of peak and off-peak runs.
-- **2026-11-24:** `scripts/peak_run.sh` finds its own folder, so it runs on any computer.
-- **2026-11-24:** correction. Since 2026-11-23 a quick run could spend 8 to 12 points, not the 4 to 6 this page promised, because it measured at least 3 points and two meter changes after the first change.
-- **2026-11-24:** what testing showed, and what changed because of it. `claude /usage` returns a figure Claude Code saves and refreshes at most every 5 minutes. Read every few seconds, it made the meter look as if it moved 2 points at a time on a 5-minute beat, and the 2026-11-23 "counts points, not ticks" and "step size from the second change" changes were built on that.
+**v0.2.0, 2026-11-24**
 
-  The live figure in each reply moves one point at a time. So the automatic run now reads the meter from each job's own reply and no longer polls `/usage`; it measures from the first move (the starting gun) to the next point and stops at a 3-point cap (`--max-points`). A quick run now costs about 2 points. Cost-per-point figures from earlier runs still hold, since the saved figure only delays the number.
-- **2026-11-24:** what testing showed: the busy-session check misses sessions waiting on a reply from Claude, so a run could be spent alongside them. The skill now pauses every other session (`quiet pause --all`).
-- **2026-11-24:** new section, "What testing taught us": where the live meter figure is and how to read it, why `/usage` is delayed and how to check it, and how the meter moves.
+- Reads the live meter from each reply instead of `claude /usage`, which can be up to 5 minutes behind.
+- A quick run now costs about 2 points: the starting gun plus one point measured, with a hard cap of 3 (`--max-points`).
+- Correction: the versions published on 2026-11-23 could spend 8 to 12 points on a quick run, not the 4 to 6 this page promised.
+- Pauses every other Claude Code session during a run, with a Mac notification when they pause and resume. While a run is going, a new prompt is stopped and asked whether to discard the run or wait.
+- The time estimate uses the last measured cost per point.
+- Claude gives estimates in percent of the session alongside tokens or time, through a one-line CLAUDE.md rule offered after calibrating.
+- `scripts/peak_run.sh` starts a run by hand, for peak-hour measurements.
+- New section: What testing taught us.
 
-  The time estimate now uses the last measured cost per point and gives a typical and a longest time; the prompt guard's "minutes left" now comes from the running measurement instead of a fixed 15 minutes.
-- **2026-11-24:** the CLAUDE.md rule now asks for percent alongside Claude's usual estimate in tokens or time, rather than instead of it.
+**v0.1.0, 2026-11-18**
+
+- First release.
 
 ## License and disclaimer
 
