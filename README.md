@@ -54,7 +54,7 @@ Then ask Claude to run the session-meter skill.
 
 **Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
 
-**Can I leave other work running?** The clean mode wants nothing else running. The skill will pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
+**Can I leave other work running?** No. Anything else using Claude during a run lands on the same meter. The skill will pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). Phone, web and voice can't be paused, so leave them alone for the few minutes it takes.
 
 **When should I run it again?** When something changes what a point is worth: a new plan, a different model or kind of work, a new Claude Code version, or an announced change to usage limits. Also if Claude's estimates in percent stop matching what the meter shows. A run costs about 2 points, so rerunning is cheap.
 
@@ -124,7 +124,7 @@ As of 2026-11-24, on a Max plan with Sonnet 5.5 jobs.
 
 - Peak hours: no clean peak-hour run yet.
 - Pausing every session (`quiet pause --all`) and `scripts/peak_run.sh` on a real run.
-- Other kinds of work (heavy rereading, a second model) and passive mode.
+- Other kinds of work (heavy rereading, a second model).
 - Whether jobs run at the same time are weighed differently from one at a time.
 - Other plans, other models, Windows, Linux.
 
