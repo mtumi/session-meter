@@ -419,7 +419,7 @@ def cmd_run(a):
     state["step"] = None
     state["target"] = None
     try:
-        while state["first"] is None or state["last"] - state["first"] < state["target"]:
+        while state["target"] is None or state["last"] - state["first"] < state["target"]:
             r = poll_meter()
             if r is None:
                 continue
@@ -431,15 +431,18 @@ def cmd_run(a):
                 if r["five_hour"] > state["last"]:
                     jump = r["five_hour"] - state["last"]
                     if state["first"] is None:
+                        # The first change is not a full step (the run starts partway into one, and a
+                        # fresh session can jump several points at once), so it does not set the step size.
                         state["first"] = r["five_hour"]
-                        state["step"] = jump
-                        # At least two steps after the first tick, so steadiness can be checked.
-                        state["target"] = max(a.points, 2 * jump)
                         print("  first tick found: meter now %d%%" % r["five_hour"], flush=True)
-                        if jump > 1:
-                            print("  The meter moves %d points at a time on this account. Measuring %d points "
-                                  "(%d steps) from here." % (jump, state["target"], -(-state["target"] // jump)), flush=True)
                     else:
+                        if state["step"] is None:
+                            state["step"] = jump
+                            # At least two steps after the first tick, so steadiness can be checked.
+                            state["target"] = max(a.points, 2 * jump)
+                            if jump > 1:
+                                print("  The meter moves %d points at a time on this account. Measuring %d points "
+                                      "(%d steps) in all." % (jump, state["target"], -(-state["target"] // jump)), flush=True)
                         state["tick_costs"].append(state["cost_since_tick"] / jump)
                         print("  step found: meter now %d%%, %d of %d points measured" % (
                             r["five_hour"], r["five_hour"] - state["first"], state["target"]), flush=True)
@@ -450,7 +453,7 @@ def cmd_run(a):
                     done, left_pts = 0, a.points + 1
                 else:
                     done = state["last"] - state["first"]
-                    left_pts = state["target"] - done - min(float(state["step"]), state["cost_since_tick"] / per_pt)
+                    left_pts = (state["target"] or a.points) - done - min(float(state["step"] or 1), state["cost_since_tick"] / per_pt)
                 mins = max(0.0, left_pts * per_pt / rate / 60.0)
                 print("  meter %d%%, points measured %d of %s, about $%.2f toward the next step, about %.0f min left%s" % (
                     r["five_hour"], done, state["target"] if state["target"] else a.points,
@@ -592,7 +595,7 @@ def cmd_fit(a):
     overall = sum(iv["per_point"]["cost"] for iv in intervals) / len(intervals)
     if overall > 0:
         plan = next((r.get("plan") for r in recs if r["type"] == "run" and r.get("plan")), None)
-        cal = {"date": now()[:10], "plan": plan, "run": a.run, "intervals": len(intervals),
+        cal = {"date": datetime.now().astimezone().strftime("%Y-%m-%d"), "plan": plan, "run": a.run, "intervals": len(intervals),
                "cost_usd_per_point": round(overall, 4), "points_per_usd": round(1.0 / overall, 3),
                "by_mix": dict((m, round(v, 4)) for m, v in means.items()),
                "note": "Cost is the dollar figure the headless run reports. Not corrected for the measuring session's own turns."}
