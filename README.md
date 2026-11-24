@@ -74,7 +74,7 @@ The script also checks whether points track the cost each job reports. If they d
 
 ### General
 
-Run it whenever you want a figure, with nothing else using Claude on any device while it runs. Repeat it a few times to see whether the figure is steady. Anthropic can change how usage is counted at any time, without notice, so rerun it regularly: after changing plan or model, after a Claude Code update, and whenever an estimate in percent seems off.
+Rerun it after changing plan or model, after a Claude Code update, and whenever an estimate in percent seems off.
 
 ### Time of day
 
