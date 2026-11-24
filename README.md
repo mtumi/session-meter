@@ -9,6 +9,49 @@ A Claude Code skill that measures what a piece of work costs on Claude's 5-hour 
 - It runs in two tiers. A quick one, about 2 points of the meter and never more than 3 unless you raise the cap, gives a cost per point for one kind of work. A standard one, about 8 to 12 points, separates input, rereading and output, and checks a second model.
 - Everything is one Python script that uses only the standard library. No packages, no network calls of its own.
 
+## Install
+
+**What you need**
+
+1. **Claude Code**, with the `claude` command working in your terminal. Check with:
+
+```bash
+claude --version
+```
+
+If it is not found, install it from Anthropic's setup page (docs.claude.com, search "Claude Code setup"), then sign in once by running `claude`.
+
+2. **Python 3.8 or newer.** The script uses only Python's built-in library, so there is nothing else to install. Check with:
+
+```bash
+python3 --version
+```
+
+If it is missing or older, install it:
+- **Mac:** `xcode-select --install` (installs Apple's Command Line Tools, which include Python 3), or `brew install python` if you use Homebrew.
+- **Windows:** `winget install Python.Python.3.12`, or download it from python.org and tick "Add Python to PATH". On Windows the command may be `python` instead of `python3`.
+- **Linux:** `sudo apt install python3` (Debian and Ubuntu) or `sudo dnf install python3` (Fedora).
+
+3. **A Claude subscription (Pro, Max or similar).** The automatic run reads the meter from the usage figure each reply carries, which comes with subscription sign-in. Nothing else to install. For the manual way, you type the percent from the claude.ai usage page when the script asks.
+
+**Install the skill**
+
+Copy this folder to `~/.claude/skills/session-meter`, or ask Claude Code to do it and to read the script to you first:
+
+```bash
+cp -R session-meter ~/.claude/skills/session-meter
+```
+
+Then ask Claude to run the session-meter skill.
+
+## Questions
+
+**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
+
+**Can I leave other work running?** The clean mode wants nothing else running. The skill can pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
+
+**Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
+
 ## The problem
 
 Anything that plans work against the meter, such as a daily job that has to stay under 70% of the session, needs to know what a unit of work costs in percent. The tools report tokens and dollars. The meter reports a whole number.
@@ -105,49 +148,6 @@ As of 2026-11-24, on a Max plan with Sonnet 5.5 jobs.
 - Other plans, other models, Windows, Linux.
 
 A phone, the web app, voice and other computers use the same meter and can't be told apart from the run's own use. Don't use them during a run.
-
-## Install
-
-**What you need**
-
-1. **Claude Code**, with the `claude` command working in your terminal. Check with:
-
-```bash
-claude --version
-```
-
-If it is not found, install it from Anthropic's setup page (docs.claude.com, search "Claude Code setup"), then sign in once by running `claude`.
-
-2. **Python 3.8 or newer.** The script uses only Python's built-in library, so there is nothing else to install. Check with:
-
-```bash
-python3 --version
-```
-
-If it is missing or older, install it:
-- **Mac:** `xcode-select --install` (installs Apple's Command Line Tools, which include Python 3), or `brew install python` if you use Homebrew.
-- **Windows:** `winget install Python.Python.3.12`, or download it from python.org and tick "Add Python to PATH". On Windows the command may be `python` instead of `python3`.
-- **Linux:** `sudo apt install python3` (Debian and Ubuntu) or `sudo dnf install python3` (Fedora).
-
-3. **A Claude subscription (Pro, Max or similar).** The automatic run reads the meter from the usage figure each reply carries, which comes with subscription sign-in. Nothing else to install. For the manual way, you type the percent from the claude.ai usage page when the script asks.
-
-**Install the skill**
-
-Copy this folder to `~/.claude/skills/session-meter`, or ask Claude Code to do it and to read the script to you first:
-
-```bash
-cp -R session-meter ~/.claude/skills/session-meter
-```
-
-Then ask Claude to run the session-meter skill.
-
-## Questions
-
-**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
-
-**Can I leave other work running?** The clean mode wants nothing else running. The skill can pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
-
-**Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
 
 ## Changes
 
