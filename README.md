@@ -56,7 +56,7 @@ Then ask Claude to run the session-meter skill.
 
 **Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 
-**How reliable is the number?** Based on limited initial testing, runs on the same plan and kind of work have landed within about 15% of each other, so one run gives a fair figure and three or four give a solid one. It holds for the plan, model, kind of work and Claude Code version you measured. Run it again when one of those changes, when usage limits change, or if Claude's estimates in percent stop matching the meter. A run costs about 2 points, so rerunning is cheap.
+**How reliable is the number?** Based on limited initial testing, runs on the same plan and kind of work have landed within about 15% of each other, so one run gives a fair figure and three or four give a solid one. It's quick to run, but Anthropic can change how usage is counted at any time, so rerun it regularly, and especially if a result seems off (see Notes on use).
 
 ## How it works
 
@@ -76,7 +76,7 @@ The script also tests an easy case first: whether points simply follow the dolla
 
 ### General
 
-Run it whenever you want a figure, with nothing else using Claude on any device while it runs. Repeat it a few times to see whether the figure is steady.
+Run it whenever you want a figure, with nothing else using Claude on any device while it runs. Repeat it a few times to see whether the figure is steady. Anthropic can change how usage is counted at any time, without notice, so rerun it regularly: after changing plan or model, after a Claude Code update, and whenever an estimate in percent seems off.
 
 ### Time of day
 
