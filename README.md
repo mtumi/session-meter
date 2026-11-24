@@ -79,32 +79,28 @@ If the two agree, the meter does not care about time of day for you. If they dif
 
 ## Our testing
 
-This is an early release. What has and has not been checked, as of 2026-11-24:
+As of 2026-11-24, on a Max plan with Sonnet 5.5 jobs.
 
-- **Checked on made-up data:** the fitting logic recovered a known cost per point to within a few percent, and its steadiness and dollar-cost checks fired when they should.
-- **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points.
+**Tested**
 
-  On average, one point of the 5-hour session took about 42,000 output tokens of these jobs, plus about 21,000 tokens written to the cache and 36,000 read from it, and the two points were 16% apart.
+- **Live meter reading:** quiet account, 4 workers, 156 jobs. The meter moved one point at a time; $1.19 and $1.36 of reported cost per point (`runs/live-headers-2026-11-24.jsonl`).
+- **Quick run, real:** starting gun at 74%, stopped at 75%, 2 points used, $1.18 per point (`runs/quick-2026-11-24-1419.jsonl`).
+- **Quick run, replayed on recorded replies:** $1.16 per point, matching a count by hand.
+- **Spending cap, and replies with no usage figure:** both stop the run as they should, on made-up readings.
+- **Prompt guard:** both replies, discarding a run, and the time shown, against a simulated run. Not yet during a real run.
+- **Cost calculation:** recovered a known cost per point within a few percent, on made-up data.
+- **Earlier runs read through `/usage`** (2026-11-18 by hand, 2026-11-23 automatic): $1.33 per point on 2026-11-23, in line with the live figures. Their 2-point steps were the `/usage` delay.
+- **Percent in estimates:** with the CLAUDE.md line, Claude gave percent for both a usage question and a "how long will this take" question.
 
-  That count leaves out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so a point is at least this much work and possibly up to twice as much. The record is in `runs/quick-2026-11-18.jsonl`.
-- **Automatic run, 2026-11-23:** the automatic `run` command, with `quiet pause` and `quiet resume`, on a Max plan with Sonnet 5.5 jobs and the measuring session idle. 400 jobs, no errors; one busy session paused and restarted. Three intervals of $1.33 of reported cost per point, within 1% of each other. That is about 1.7 times the hand run's figure, which fits the hand run counting the measuring session's own turns.
+**Not tested yet**
 
-  The meter appeared to move 2 points every 5 minutes. That was the `/usage` delay, not the meter. The cost per point still holds, because it is averaged over many 5-minute stretches.
-- **Live readings, 2026-11-24:** quiet account, 4 workers, 156 jobs over 8 minutes just after 2pm Eastern on a weekday: $1.19 and $1.36 of reported cost per point. The record is in `runs/live-headers-2026-11-24.jsonl`.
-- **The new automatic run, 2026-11-24:** replaying those recorded replies through it, the run found the starting gun at 69%, stopped at 70% after 2 points in all, and reported $1.16 per point, matching a count by hand.
+- Peak hours: no clean peak-hour run yet.
+- Pausing every session (`quiet pause --all`) and `scripts/peak_run.sh` on a real run.
+- The standard tier (input, rereading and output separated; a second model) and passive mode.
+- Whether jobs run at the same time are weighed differently from one at a time.
+- Other plans, other models, Windows, Linux.
 
-  Checked on made-up readings: when the meter jumps 2 points at once (other usage on the account) it stops at the 3-point cap; when a reply carries no usage figure it says so and stops before spending.
-
-  First real run the same afternoon (`runs/quick-2026-11-24-1419.jsonl`, quiet account, 4 workers, 52 jobs): starting gun at 74%, stopped at 75%, 2 points used in all, $1.18 of reported cost per point, in line with the readings above.
-- **Spending, corrected 2026-11-24:** the published versions from 2026-11-23 measured at least 3 points and two meter changes after the first one, so a quick run really spent 8 to 12 points, not the 4 to 6 this page promised then. The current run measures one point after the starting gun and stops at a 3-point cap.
-- **Pausing other sessions, 2026-11-24:** the busy check missed sessions waiting on a reply, so one peak-hour run was spoiled. The skill now pauses every session (`quiet pause --all`).
-- **Not yet measured:** whether the meter weighs simultaneous jobs differently from one at a time (run the same work with 1 worker and with 8 and compare), and whether peak hours cost more per point (only off-peak runs so far are clean).
-- **Not tested:** other plans, other models, Windows, Linux.
-- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big.
-
-  The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation. The line asks Claude to give percent alongside its usual estimate in tokens or time, rather than instead of it, so it works with Claude's habits instead of against them.
-
-A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
+A phone, the web app, voice and other computers use the same meter and can't be told apart from the run's own use. Don't use them during a run.
 
 ## Install
 
