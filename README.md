@@ -51,6 +51,10 @@ Other routes fall short too: the endpoint behind `/usage` (`/api/oauth/usage`) i
 
 **3. The meter moves one point at a time.** Read live on a quiet account, it went 68% to 69% to 70% to 71%, 2 minutes 16 seconds and 2 minutes 33 seconds apart at a steady load. There is no fixed clock and no multi-point step. Jumps of 2 or more points mean a delayed reader or something else on the account spending.
 
+**4. Ask for percent alongside tokens, not instead of them.** With only the skill installed, Claude answered in percent when asked about usage, but fell back to tokens when asked whether a job was big. Talking in tokens is probably deeply ingrained, so an instruction to replace it loses some of the time.
+
+The fix was to ask for percent of the session alongside any estimate in tokens or time. That doesn't fight the old habit, and it turns the old habit into the trigger: whenever Claude reaches for tokens, the percent comes with it. Retested, both kinds of question gave percent.
+
 ## Related tools
 
 [ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra.
