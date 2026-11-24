@@ -80,7 +80,7 @@ Rerun it after changing plan or model, after a Claude Code update, and whenever 
 
 Anthropic has said the 5-hour session can drain faster at busy times. In March 2026 it announced that on weekdays from 5am to 11am Pacific time (8am to 2pm Eastern, 1pm to 7pm UTC in winter) the session limit would drain faster, with the weekly limit unchanged.
 
-Reports in May 2026 say it removed that peak-hour reduction for Claude Code on Pro and Max plans, but the same wording has been reported to remain for other products, and we could not find Anthropic's own current statement. So treat it as unknown for your plan.
+In May 2026 Anthropic said it had removed that reduction for Claude Code on Pro and Max plans. Our one peak-hour run so far wasn't clean, so we can't confirm that yet.
 
 The skill records the local time, the day and the time zone with every run. If you want the full picture, run it during the weekday window above and again overnight or on a weekend, and compare the cost per point.
 
