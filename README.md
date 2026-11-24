@@ -56,7 +56,7 @@ Then ask Claude to run the session-meter skill.
 
 **Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 
-**When should I run it again?** When something changes what a point is worth: a new plan, a different model or kind of work, a new Claude Code version, or an announced change to usage limits. Also if Claude's estimates in percent stop matching what the meter shows. A run costs about 2 points, so rerunning is cheap.
+**How reliable is the number?** Runs on the same plan and kind of work have landed within about 15% of each other ($1.16 to $1.36 per point), so one run gives a fair figure and three or four give a solid one. It holds for the plan, model, kind of work and Claude Code version you measured. Run it again when one of those changes, when usage limits change, or if Claude's estimates in percent stop matching the meter. A run costs about 2 points, so rerunning is cheap.
 
 ## How it works
 
