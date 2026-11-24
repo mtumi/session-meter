@@ -196,7 +196,6 @@ FROZEN = os.path.join(RUNS, "frozen.json")
 # Shared with scripts/meter_guard.py (a prompt hook): CHECK exists while a check is in progress,
 # LAST_CHECK records the latest one so a resumed session can be told it was paused.
 CHECK = os.path.expanduser("~/.claude/session-meter-check.json")
-STEP_FILE = os.path.expanduser("~/.claude/session-meter-step.json")  # points per display change, from the last run
 LAST_CHECK = os.path.expanduser("~/.claude/session-meter-last-check.json")
 
 
@@ -364,41 +363,45 @@ def cmd_estimate(a):
 # ── run: the automatic measurement ───────────────────────────────────────────────────────────
 
 import threading
-import re as _re
 
-POLL_CMD = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--setting-sources", "",
-            "--no-session-persistence", "--no-chrome", "/usage"]
+# The live meter. Every reply from the model carries the account's current 5-hour utilization in the
+# response header anthropic-ratelimit-unified-5h-utilization (for example "0.69"). With ANTHROPIC_LOG=debug,
+# Claude Code prints the headers, so every job doubles as a fresh meter reading. Do not read the meter
+# with 'claude /usage' during a run: Claude Code saves that figure and refreshes it at most every
+# 5 minutes (checked in version 2.1.236), which turns a meter that moves one point at a time into
+# 5-minute jumps of several points.
 
-
-def poll_meter():
-    """Read the meter with 'claude -p /usage': no model call, a few seconds. Returns dict or None."""
-    t0 = time.time()
-    p = subprocess.run(POLL_CMD, capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=60)
-    t1 = time.time()
-    m = _re.search(r"Current session:\s*(\d+)% used", p.stdout)
-    if not m:
-        return None
-    w = _re.search(r"Current week \(all models\):\s*(\d+)% used", p.stdout)
-    f = _re.search(r"Current week \((?!all)[^)]*\):\s*(\d+)% used", p.stdout)
-    mid = datetime.fromtimestamp((t0 + t1) / 2, timezone.utc).isoformat(timespec="seconds")
-    return {"t": mid, "poll_seconds": round(t1 - t0, 1), "five_hour": int(m.group(1)),
-            "weekly_all": int(w.group(1)) if w else None, "weekly_model": int(f.group(1)) if f else None}
+def live_reading(text):
+    """Highest 5-hour utilization in a job's debug output, in percent (float), or None."""
+    vals = [float(v) for v in re.findall(r'unified-5h-utilization"?\s*:\s*"([0-9.]+)"', text)]
+    return round(max(vals) * 100, 2) if vals else None
 
 
 def one_job(a):
-    """Run one headless job and return its record (same shape as the 'job' command)."""
+    """Run one headless job and return its record (same shape as the 'job' command), with the live
+    meter reading from its own reply in 'meter'."""
     prompt = open(a.prompt_file).read() if a.prompt_file else a.prompt
     if a.filler_words:
         prompt = filler(a.filler_words) + "\n\n" + prompt
     cmd = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--tools", "", "--setting-sources", "",
            "--no-session-persistence", "--no-chrome", "--disable-slash-commands", "--model", a.model,
            "--output-format", "json"]
+    env = dict(os.environ, ANTHROPIC_LOG="debug")
     t0 = now()
-    p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=600)
+    p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tempfile.gettempdir(),
+                       timeout=600, env=env)
     rec = {"type": "job", "t_start": t0, "t_end": now(), "mix": a.mix, "model": a.model, "error": None}
-    try:
-        d = json.loads(p.stdout)
-    except ValueError:
+    out = p.stdout + "\n" + p.stderr  # the debug log and the result share stdout
+    rec["meter"] = live_reading(out)
+    d = None
+    for line in reversed(out.splitlines()):
+        if line.startswith("{"):
+            try:
+                d = json.loads(line)
+                break
+            except ValueError:
+                pass
+    if d is None:
         rec["error"] = (p.stderr or p.stdout)[-200:] or "no output"
         return rec
     u = d.get("usage") or {}
@@ -412,21 +415,17 @@ def one_job(a):
 
 
 def cmd_run(a):
+    """Starting gun, then the measurement: run jobs until the live meter changes (that change is the
+    starting gun; the work before it is thrown away), then keep going until it has moved --points more
+    points. The work between the starting gun and the end is exactly that many points. A spending cap
+    (--max-points, counted from the start reading) stops the run wherever it is."""
     lock = threading.Lock()
     stop = threading.Event()
-    state = {"readings": [], "jobs": [], "ticks": 0, "last": None, "cost_since_tick": 0.0, "tick_costs": [],
-             "t_first_tick": None, "errors": 0}
-    append(a.run, {"type": "run", "t": now(), "run": a.run, "plan": a.plan, "mode": "auto",
+    append(a.run, {"type": "run", "t": now(), "run": a.run, "plan": a.plan, "mode": "auto", "reader": "reply-headers",
                    "workers": a.workers, "note": a.note,
                    "claude_version": subprocess.run(["claude", "--version"], capture_output=True, text=True).stdout.strip(),
                    "local_time": datetime.now().astimezone().isoformat(timespec="seconds")})
-    print("Measuring. First a quick pilot to estimate the time.", flush=True)
-    r0 = poll_meter()
-    if not r0:
-        print("Could not read the meter with 'claude -p /usage'. Use the manual 'read' and 'job' commands instead.")
-        return 1
-    append(a.run, dict(r0, type="meter", note="start"))
-    state["last"] = r0["five_hour"]
+    print("Measuring. First a pilot job to read the meter and estimate the time.", flush=True)
     tp = time.time()
     pj = one_job(a)
     append(a.run, pj)
@@ -435,33 +434,27 @@ def cmd_run(a):
     if pj.get("error") or not jcost:
         print("Pilot job failed:", pj.get("error"))
         return 1
-    est_cost_pt = a.expect_usd_per_point
-    secs_per_point = est_cost_pt / (a.workers * jcost / jsecs)
-    total_min = min(a.max_points, 2 * (a.steps + 1)) * secs_per_point / 60.0
-    known_step = None
-    try:
-        known_step = json.load(open(STEP_FILE)).get("step")
-    except (OSError, ValueError):
-        pass
-    if known_step and known_step * (a.steps + 1) > a.max_points:
-        print("On this account the meter moves %d points at a time, so a run of %d step(s) can cost up to %d points, "
-              "over the %d-point cap. Raise --max-points to at least %d if you accept that, or measure by hand."
-              % (known_step, a.steps, known_step * (a.steps + 1), a.max_points, known_step * (a.steps + 1)), flush=True)
+    if pj.get("meter") is None:
+        print("The reply carried no usage figure (this happens off a Claude subscription). "
+              "Use the manual 'read' and 'job' commands instead.")
         return 1
-    if r0["five_hour"] + a.max_points > 100:
-        print("The session is at %d%%, too close to its limit for a run that may spend up to %d points. "
-              "Try after the reset." % (r0["five_hour"], a.max_points), flush=True)
+    start = pj["meter"]
+    append(a.run, {"type": "meter", "t": pj["t_end"], "five_hour": start, "note": "start (reply)"})
+    if start + a.max_points > 100:
+        print("The session is at %g%%, too close to its limit for a run that may spend up to %d points. "
+              "Try after the reset." % (start, a.max_points), flush=True)
         return 1
-    print("Pilot: one job takes %.0fs and reports $%.3f; a poll takes %.0fs." % (jsecs, jcost, r0["poll_seconds"]), flush=True)
-    print("Plan: %d workers. First find where the meter changes (this costs up to one step of the meter and is "
-          "not measured), then measure %d full step(s)%s. Spending cap: %d points of the 5-hour session; the run "
-          "stops there whatever happens." % (a.workers, a.steps,
-                                            (" and at least %d points" % a.points) if a.points else "", a.max_points), flush=True)
-    print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first step)." % (
-        total_min, est_cost_pt), flush=True)
+    rate = a.workers * jcost / jsecs
+    est_min = (1 + a.points) * a.expect_usd_per_point / rate / 60.0
+    print("Pilot: one job takes %.0fs and reports $%.3f. Meter at %g%%." % (jsecs, jcost, start), flush=True)
+    print("Plan: %d workers. Run until the meter changes (the starting gun; up to one point, not measured), "
+          "then measure %d point(s). Spending cap: %d points; the run stops there whatever happens."
+          % (a.workers, a.points, a.max_points), flush=True)
+    print("Estimated time: up to about %.0f minutes (at an assumed $%.2f per point)." % (est_min, a.expect_usd_per_point),
+          flush=True)
     t_start = time.time()
-    # Mark the check as in progress (meter_guard.py answers new prompts with a choice while this exists).
-    write_check(run_pid=os.getpid(), run=a.run, started=now())
+    if not a.no_guard:  # meter_guard.py answers new prompts with a choice while this marker exists
+        write_check(run_pid=os.getpid(), run=a.run, started=now())
     discarded = {"yes": False}
 
     def on_term(signum, frame):
@@ -469,96 +462,48 @@ def cmd_run(a):
         raise SystemExit(3)
     signal.signal(signal.SIGTERM, on_term)
 
+    st = {"max": start, "gun": None, "errors": 0, "done": None}
+
     def worker(delay):
         time.sleep(delay)
         while not stop.is_set():
             rec = one_job(a)
             with lock:
                 append(a.run, rec)
-                state["jobs"].append(rec)
                 if rec.get("error"):
-                    state["errors"] += 1
-                else:
-                    state["cost_since_tick"] += rec.get("cost_usd") or 0.0
+                    st["errors"] += 1
+                v = rec.get("meter")
+                if v is None:
+                    continue
+                # Replies finish out of order, so an older figure can arrive after a newer one: keep the highest.
+                if v > st["max"]:
+                    st["max"] = v
+                    if st["gun"] is None:
+                        st["gun"] = v
+                        print("  starting gun: meter now %g%% (measuring from here)" % v, flush=True)
+                    else:
+                        print("  meter now %g%%, %g of %d point(s) measured" % (v, v - st["gun"], a.points), flush=True)
+                append(a.run, {"type": "meter", "t": rec["t_end"], "five_hour": st["max"], "note": "reply"})
+                if st["gun"] is not None and st["max"] - st["gun"] >= a.points:
+                    st["done"] = "measured"
+                    stop.set()
+                elif st["max"] - start >= a.max_points:
+                    st["done"] = "cap"
+                    stop.set()
 
-    threads = [threading.Thread(target=worker, args=(i * 5,), daemon=True) for i in range(a.workers)]
+    threads = [threading.Thread(target=worker, args=(i * 3,), daemon=True) for i in range(a.workers)]
     for t in threads:
         t.start()
-    # Count points, not ticks: on some accounts the display moves more than one point at a time
-    # (2026-11-23, Max plan: every change was 2 points). The first change sets the step size.
-    rate = a.workers * jcost / jsecs
-    state["first"] = None
-    state["step"] = None
-    state["target"] = None
     try:
-        while state["target"] is None or state["last"] - state["first"] < state["target"]:
-            r = poll_meter()
-            if r is None:
-                continue
-            with lock:
-                append(a.run, dict(r, type="meter", note="auto"))
-                # A change counts only once the next reading agrees. The display can flicker for one
-                # reading (2026-11-24 peak run: 49, 50, 49), which used to stop the run as a "reset".
-                if r["five_hour"] == state["last"]:
-                    state["pending"] = None
-                elif state.get("pending") != r["five_hour"]:
-                    state["pending"] = r["five_hour"]
-                    continue
-                else:
-                    state["pending"] = None
-                if r["five_hour"] < state["last"]:
-                    print("The meter dropped (a reset?). Stopping; discard this run.", flush=True)
-                    break
-                spent = r["five_hour"] - r0["five_hour"]
-                if r["five_hour"] > state["last"]:
-                    jump = r["five_hour"] - state["last"]
-                    if state["first"] is None and known_step and spent + known_step * a.steps > a.max_points:
-                        state["first"] = r["five_hour"]
-                        print("Finding the starting line cost %d points; measuring a %d-point step now would pass the "
-                              "%d-point cap. Stopping; nothing measured." % (spent, known_step * a.steps, a.max_points), flush=True)
-                        break
-                    if state["first"] is None:
-                        # The first change is not a full step (the run starts partway into one, and a
-                        # fresh session can jump several points at once), so it does not set the step size.
-                        state["first"] = r["five_hour"]
-                        print("  first tick found: meter now %d%%" % r["five_hour"], flush=True)
-                    else:
-                        if state["step"] is None:
-                            state["step"] = jump
-                            try:
-                                json.dump({"step": jump, "t": now(), "run": a.run}, open(STEP_FILE, "w"))
-                            except OSError:
-                                pass
-                            # Measure --steps full steps after the first change (default 1: repeat runs, not
-                            # extra steps, check steadiness), and at least --points points if asked.
-                            state["target"] = max(a.points or 0, a.steps * jump)
-                            if jump > 1:
-                                print("  The meter moves %d points at a time on this account. Measuring %d points "
-                                      "(%d step%s) in all." % (jump, state["target"], -(-state["target"] // jump), "" if -(-state["target"] // jump) == 1 else "s"), flush=True)
-                        state["tick_costs"].append(state["cost_since_tick"] / jump)
-                        print("  step found: meter now %d%%, %d of %d points measured" % (
-                            r["five_hour"], r["five_hour"] - state["first"], state["target"]), flush=True)
-                    state["last"] = r["five_hour"]
-                    state["cost_since_tick"] = 0.0
-                    if spent >= a.max_points and not (state["target"] and state["last"] - state["first"] >= state["target"]):
-                        print("Spending cap reached: %d points used (cap %d). Stopping with what was measured."
-                              % (spent, a.max_points), flush=True)
-                        break
-                per_pt = (sum(state["tick_costs"]) / len(state["tick_costs"])) if state["tick_costs"] else est_cost_pt
-                per_pt = per_pt or est_cost_pt
-                if state["first"] is None:
-                    done, left_pts = 0, a.steps + 1
-                else:
-                    done = state["last"] - state["first"]
-                    left_pts = (state["target"] or a.steps) - done - min(float(state["step"] or 1), state["cost_since_tick"] / per_pt)
-                mins = max(0.0, left_pts * per_pt / rate / 60.0)
-                print("  meter %d%%, points measured %d of %s, about $%.2f toward the next step, about %.0f min left%s" % (
-                    r["five_hour"], done, state["target"] if state["target"] else "?",
-                    state["cost_since_tick"], mins,
-                    ("  [%d job error(s)]" % state["errors"]) if state["errors"] else ""), flush=True)
+        while not stop.is_set():
+            time.sleep(1)
             if time.time() - t_start > a.max_minutes * 60:
+                st["done"] = "time"
                 print("Time limit reached; stopping.", flush=True)
                 break
+        if st["done"] == "cap":
+            print("Spending cap reached: %g points used (cap %d). Stopping with what was measured."
+                  % (st["max"] - start, a.max_points), flush=True)
     finally:
         stop.set()
         print("Stopping jobs (letting in-flight ones finish)...", flush=True)
@@ -573,6 +518,8 @@ def cmd_run(a):
             pending_resume = False
         if not pending_resume:  # nothing paused: clear the marker now; otherwise 'quiet resume' does it
             finish_check(paused=[], discarded=discarded["yes"])
+    print("Points used in all: %g (start %g%%, end %g%%)%s." % (
+        st["max"] - start, start, st["max"], ("; %d job error(s)" % st["errors"]) if st["errors"] else ""), flush=True)
     print("\nFitting.", flush=True)
     class F: pass
     f = F(); f.run = a.run
@@ -758,9 +705,9 @@ def main():
     s.add_argument("--run", required=True); s.add_argument("--mix", required=True)
     s.add_argument("--model", required=True, help="full model id")
     s.add_argument("--prompt"); s.add_argument("--prompt-file"); s.add_argument("--filler-words", type=int, default=0)
-    s.add_argument("--steps", type=int, default=1, help="full steps of the meter to measure after the first change (default 1)")
-    s.add_argument("--max-points", type=int, default=6, help="spending cap in points of the 5-hour session (default 6)")
-    s.add_argument("--points", type=int, default=None, help="optional: measure at least this many points (raises the cost)")
+    s.add_argument("--points", type=int, default=1, help="points to measure after the starting gun (default 1)")
+    s.add_argument("--max-points", type=int, default=3, help="spending cap in points of the 5-hour session (default 3)")
+    s.add_argument("--no-guard", action="store_true", help="let other sessions work during the run (for tests that do not need a quiet account)")
     s.add_argument("--workers", type=int, default=4, help="jobs at once")
     s.add_argument("--expect-usd-per-point", type=float, default=0.8, help="rough guess, only for the time estimate")
     s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")
