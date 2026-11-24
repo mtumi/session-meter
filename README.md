@@ -93,6 +93,7 @@ Then ask Claude to run the session-meter skill.
 - **2026-11-23:** the automatic run counts points of the meter rather than ticks, since some meters move 2 points at a time. The skill now triggers on any job sizing, and after calibrating it offers a one-line CLAUDE.md rule so Claude keeps talking in percent.
 - **2026-11-24:** the step size comes from the meter's second change, not its first, which is never a full step. Calibration dates use local time.
 - **2026-11-24:** a meter change counts only when the next reading agrees, so a one-reading flicker no longer stops a run.
+- **2026-11-24:** while a measurement runs, a new prompt in another session is stopped and asks whether to discard the measurement or wait. You get a Mac notification when sessions are paused and resumed. `scripts/peak_run.sh` starts a run that pauses every other session, and `runs/PEAK_VS_OFFPEAK.md` keeps a running comparison of peak and off-peak runs.
 - **2026-11-24:** the CLAUDE.md rule now asks for percent alongside Claude's usual estimate in tokens or time, rather than instead of it.
 
 ## License and disclaimer
