@@ -1,6 +1,6 @@
 ---
 name: session-meter
-description: Measure what a unit of work costs on Claude's 5-hour usage meter, by finding the exact moments the whole-percent display ticks over. Use when someone wants token counts translated into percent of the session, or when the meter's rules may have changed.
+description: Measure what a unit of work costs on Claude's 5-hour usage meter, by finding the exact moments the whole-percent display ticks over. Use when someone wants token counts translated into percent of the session, or when the meter's rules may have changed. Also use whenever sizing, planning or estimating any piece of work (a batch of jobs, agents, a long task, "is this a big job?"), so the answer is given in percent of the 5-hour session rather than tokens.
 ---
 
 # Session meter
@@ -33,7 +33,7 @@ The manual way:
 Run jobs one at a time. Name the model in full; the script refuses to trust a reply from a different model.
 
 ## Tiers
-- **Quick, about 3 points:** one kind of work, one search for the first tick (up to 1 point, thrown away), two full points. Gives one cost per point and a first steadiness check. Do this now.
+- **Quick, about 4 to 6 points:** one kind of work, one search for the first tick (up to one step of the meter, thrown away), then at least 3 points and never fewer than two steps. The display moves 1 point at a time on some accounts and 2 on others (2026-11-23, Max plan: always 2), so the quick tier costs about 4 points on the first kind and 6 on the second. The script finds the step size by itself. Gives one cost per point and a first steadiness check. Do this now.
 - **Standard, about 8 to 12 points:** output-heavy, reread-heavy and a second model, plus a held-back job to check the fit. Schedule it for a time when nobody is using Claude at all.
 - **Dollar-cost test:** the headless report includes a dollar cost. If points per dollar come out the same for every kind of work, one number per plan is enough and the quick tier is all you need.
 
@@ -48,3 +48,9 @@ Say the date, the plan, the mode, how many intervals, the cost of one point per 
 
 ## After calibrating: talk in percent of the session
 Once `runs/calibration.json` exists, the user does not want token counts or dollars. For the rest of the conversation, and in later ones while the calibration is still current, state the cost of any planned work as a rough percent of the 5-hour session: "this will use about 6% of your 5-hour session". Get the number with `session_meter.py estimate --cost-usd <dollar figure from the job report or the plan>`, or by scaling from the measured cost per point. Say "about" and give a range when the estimate is loose. Mention tokens or dollars only if the user asks. Say the calibration date and plan when it matters, and recommend re-measuring if the plan or the rules may have changed.
+
+**Make it stick.** This section only loads when the skill is in use. Tested 2026-11-23: with the skill installed, Claude answered in percent when asked about usage, but answered in tokens when asked "is this a big job?" So after saving a calibration, ask the user: "Add one line to your CLAUDE.md so Claude quotes costs in percent of the 5-hour session in every conversation?" On a yes, append this line to `~/.claude/CLAUDE.md` (create the file if it is missing), with the skill's real path:
+
+```
+When saying what planned work will cost or how big a job is, give it as a rough percent of the 5-hour session from the session-meter calibration (`python3 ~/.claude/skills/session-meter/scripts/session_meter.py estimate --cost-usd <dollars>`), not tokens or dollars unless asked.
+```

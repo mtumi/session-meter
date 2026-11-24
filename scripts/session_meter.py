@@ -391,7 +391,8 @@ def cmd_run(a):
     secs_per_point = est_cost_pt / (a.workers * jcost / jsecs)
     total_min = (a.points + 1) * secs_per_point / 60.0
     print("Pilot: one job takes %.0fs and reports $%.3f; a poll takes %.0fs." % (jsecs, jcost, r0["poll_seconds"]), flush=True)
-    print("Plan: %d workers, finding the first tick (up to 1 point) then %d full points." % (a.workers, a.points), flush=True)
+    print("Plan: %d workers, finding the first tick (up to one step of the meter) then at least %d points, "
+          "and never fewer than two steps." % (a.workers, a.points), flush=True)
     print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first point)." % (
         total_min, est_cost_pt), flush=True)
     t_start = time.time()
@@ -411,10 +412,14 @@ def cmd_run(a):
     threads = [threading.Thread(target=worker, args=(i * 5,), daemon=True) for i in range(a.workers)]
     for t in threads:
         t.start()
-    need = a.points + 1
-    last_tick_time = None
+    # Count points, not ticks: on some accounts the display moves more than one point at a time
+    # (2026-11-23, Max plan: every change was 2 points). The first change sets the step size.
+    rate = a.workers * jcost / jsecs
+    state["first"] = None
+    state["step"] = None
+    state["target"] = None
     try:
-        while state["ticks"] < need:
+        while state["first"] is None or state["last"] - state["first"] < state["target"]:
             r = poll_meter()
             if r is None:
                 continue
@@ -424,20 +429,32 @@ def cmd_run(a):
                     print("The meter dropped (a reset?). Stopping; discard this run.", flush=True)
                     break
                 if r["five_hour"] > state["last"]:
-                    state["ticks"] += 1
+                    jump = r["five_hour"] - state["last"]
+                    if state["first"] is None:
+                        state["first"] = r["five_hour"]
+                        state["step"] = jump
+                        # At least two steps after the first tick, so steadiness can be checked.
+                        state["target"] = max(a.points, 2 * jump)
+                        print("  first tick found: meter now %d%%" % r["five_hour"], flush=True)
+                        if jump > 1:
+                            print("  The meter moves %d points at a time on this account. Measuring %d points "
+                                  "(%d steps) from here." % (jump, state["target"], -(-state["target"] // jump)), flush=True)
+                    else:
+                        state["tick_costs"].append(state["cost_since_tick"] / jump)
+                        print("  step found: meter now %d%%, %d of %d points measured" % (
+                            r["five_hour"], r["five_hour"] - state["first"], state["target"]), flush=True)
                     state["last"] = r["five_hour"]
-                    if state["ticks"] > 1:
-                        state["tick_costs"].append(state["cost_since_tick"])
                     state["cost_since_tick"] = 0.0
-                    last_tick_time = time.time()
-                    print("  tick %d of %d found: meter now %d%%" % (state["ticks"], need, r["five_hour"]), flush=True)
                 per_pt = (sum(state["tick_costs"]) / len(state["tick_costs"])) if state["tick_costs"] else est_cost_pt
-                done = max(0, state["ticks"] - 1)
-                left_pts = (a.points - done) - min(1.0, state["cost_since_tick"] / per_pt) if state["ticks"] >= 1 else need
-                rate = (a.workers * jcost / jsecs)
+                if state["first"] is None:
+                    done, left_pts = 0, a.points + 1
+                else:
+                    done = state["last"] - state["first"]
+                    left_pts = state["target"] - done - min(float(state["step"]), state["cost_since_tick"] / per_pt)
                 mins = max(0.0, left_pts * per_pt / rate / 60.0)
-                print("  meter %d%%, full points done %d of %d, about $%.2f toward the next, about %.0f min left%s" % (
-                    r["five_hour"], done, a.points, state["cost_since_tick"], mins,
+                print("  meter %d%%, points measured %d of %s, about $%.2f toward the next step, about %.0f min left%s" % (
+                    r["five_hour"], done, state["target"] if state["target"] else a.points,
+                    state["cost_since_tick"], mins,
                     ("  [%d job error(s)]" % state["errors"]) if state["errors"] else ""), flush=True)
             if time.time() - t_start > a.max_minutes * 60:
                 print("Time limit reached; stopping.", flush=True)
@@ -533,14 +550,20 @@ def cmd_fit(a):
         d = dict((k, ticks[i]["pos"].get(k, 0) - ticks[i - 1]["pos"].get(k, 0)) for k in keys)
         unc = dict((k, ticks[i]["half"].get(k, 0) + ticks[i - 1]["half"].get(k, 0)) for k in keys)
         mixes = mixes_between(ticks[i - 1]["t1"], ticks[i]["t0"])
-        if pts != 1:
-            problems.append("a jump of %d points at once (to %d); divided, but treat with care" % (pts, ticks[i]["to"]))
         intervals.append({"from": ticks[i - 1]["to"], "to": ticks[i]["to"], "points": pts,
                           "per_point": dict((k, v / pts) for k, v in d.items()),
                           "unc_per_point": dict((k, v / pts) for k, v in unc.items()),
                           "mix": "+".join(mixes) if mixes else "?"})
     print("Run %s: %d jobs, %d meter readings, %d ticks, %d full intervals" %
           (a.run, len(jobs), len(meters), len(ticks), len(intervals)))
+    # The display can move more than one point at a time. If every step is the same size, that is
+    # the meter's step, and dividing each step evenly is sound. Mixed sizes may mean a missed reading.
+    sizes = sorted(set(iv["points"] for iv in intervals))
+    if len(sizes) == 1 and sizes[0] > 1:
+        print("The meter moved %d points at a time throughout; each step is divided evenly into points." % sizes[0])
+    elif len(sizes) > 1:
+        problems.append("the meter moved by different amounts (%s points); a reading may have been missed, "
+                        "treat the larger steps with care" % ", ".join(str(x) for x in sizes))
     if not intervals:
         print("Need at least two ticks (two full points of work) to measure one interval.")
         for p in problems:

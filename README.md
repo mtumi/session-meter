@@ -6,7 +6,7 @@ A Claude Code skill that measures what a piece of work costs on Claude's 5-hour 
 
 - The meter shows whole percents, and its weights are not published. Token counts do not tell you what a job will cost on it, and the rules can change at any time.
 - Each time the meter ticks from N to N+1, the work done since the previous tick cost exactly one point. The skill runs small jobs, reads the meter after each, and divides the recorded work between ticks by the points.
-- It runs in two tiers. A quick one, about 3 points of the meter, gives a cost per point for one kind of work. A standard one, about 8 to 12 points, separates input, rereading and output, and checks a second model.
+- It runs in two tiers. A quick one, about 4 to 6 points of the meter, gives a cost per point for one kind of work. A standard one, about 8 to 12 points, separates input, rereading and output, and checks a second model.
 - Everything is one Python script that uses only the standard library. No packages, no network calls of its own.
 
 ## The problem
@@ -21,7 +21,7 @@ The script also tests an easy case first: whether points simply follow the dolla
 
 ## Related tools
 
-[ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra. session-meter does the measurement on demand, in one sitting, with a controlled workload and your other sessions paused. That costs about 3 points, and afterwards Claude talks in percent of the 5-hour session. Because you choose when it runs, you can also measure the busy weekday window and off-peak separately with the same work, and see whether time of day changes the figure (see Time of day). If you can wait a few days and would rather not spend the points, ccmeter is the cheaper route.
+[ccmeter](https://github.com/iteebz/ccmeter) uses the same tick idea, but passively. It runs in the background, checks the usage percent every 2 minutes, matches each tick against Claude Code's local logs, and after a few days of normal use reports a budget in dollars. It costs nothing extra. session-meter does the measurement on demand, in one sitting, with a controlled workload and your other sessions paused. That costs about 4 to 6 points, and afterwards Claude talks in percent of the 5-hour session. Because you choose when it runs, you can also measure the busy weekday window and off-peak separately with the same work, and see whether time of day changes the figure (see Time of day). If you can wait a few days and would rather not spend the points, ccmeter is the cheaper route.
 
 ## Our strategy
 
@@ -37,9 +37,10 @@ This is an early release. What has and has not been checked, as of 2026-11-18:
 
 - **Checked on made-up data:** the fitting logic recovered a known cost per point to within a few percent, and its steadiness and dollar-cost checks fired when they should.
 - **One real run, by hand:** on a Max plan, 34 output-heavy jobs on Sonnet 5.5 with other sessions paused, three ticks of the meter (25% to 28%), two full points. On average, one point of the 5-hour session took about 42,000 output tokens of these jobs, plus about 21,000 tokens written to the cache and 36,000 read from it, and the two points were 16% apart. That count leaves out the measuring session's own turns, which reread a long context each time and may have been close to the same size as the jobs, so a point is at least this much work and possibly up to twice as much. The record is in `runs/quick-2026-11-18.jsonl`.
-- **Not yet tested on the real meter:** the automatic `run` command (parallel jobs, the script reading the meter with `claude -p "/usage"`), and the `quiet pause` and `quiet resume` commands. Whether the meter weighs simultaneous jobs differently from one at a time is unknown; the way to find out is to run the same work with 1 worker and with 8 and compare. Whether the meter lags behind spending is also unmeasured.
+- **Automatic run, 2026-11-23:** the automatic `run` command, with `quiet pause` and `quiet resume`, on a Max plan with Sonnet 5.5 jobs and the measuring session idle. 400 jobs, no errors; one busy session paused and restarted. Three intervals of $1.33 of reported cost per point, within 1% of each other. That is about 1.7 times the hand run's figure, which fits the hand run counting the measuring session's own turns. The meter moved 2 points at a time on every change, so the script now counts points rather than ticks and finds the step size by itself.
+- **Not yet measured:** whether the meter weighs simultaneous jobs differently from one at a time (run the same work with 1 worker and with 8 and compare), and whether it lags behind spending.
 - **Not tested:** other plans, other models, Windows, Linux.
-- **Not yet checked:** whether Claude keeps talking in percent of the 5-hour session after calibrating, instead of falling back to tokens. Talking in tokens may be too ingrained for one instruction to override.
+- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big. The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation.
 
 A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
 
@@ -80,7 +81,7 @@ Then ask Claude to run the session-meter skill.
 
 ## Questions
 
-**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 3 points.
+**Does it use my meter?** Yes. That is the point, and it is why the tiers exist. The quick tier uses about 4 to 6 points, depending on whether your meter moves 1 or 2 points at a time.
 
 **Can I leave other work running?** The clean mode wants nothing else running. The skill can pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
 
