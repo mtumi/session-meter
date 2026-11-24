@@ -82,6 +82,13 @@ Anthropic has made the session drain faster on weekdays from 8am to 2pm Eastern 
 
 ## Changes
 
+**v0.2.1, 2026-11-24**
+
+- One kind of run: the "quick" and "standard" tiers are gone. To compare kinds of work, run once per kind.
+- Passive mode is gone from the docs; a run always pauses your other sessions.
+- The spending cap is described as it works: at 3 points no new jobs start, and the few already running finish.
+- README reorganized: install near the top, shorter throughout, and a Learnings from testing section with a fourth lesson (ask for percent alongside tokens, not instead of them).
+
 **v0.2.0, 2026-11-24**
 
 - Reads the live meter from each reply instead of `claude /usage`, which can be up to 5 minutes behind.
