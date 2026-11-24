@@ -74,6 +74,8 @@ The script also checks whether points track the cost each job reports. If they d
 
 ### General
 
+Don't use Claude on your phone, the web, voice or another computer during a run. The skill can't pause those, and their use lands on the same meter.
+
 Rerun it after changing plan or model, after a Claude Code update, and whenever an estimate in percent seems off.
 
 ### Time of day
@@ -126,8 +128,6 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 - Other kinds of work. A point is probably a different number of tokens when a job mostly rereads a long context, or runs on Opus instead of Sonnet; only the short Sonnet jobs above have been measured.
 - Running jobs one at a time. Every run so far ran 4 at once; the same work done one after another might use the meter differently.
 - Other plans, other models, Windows, Linux.
-
-A phone, the web app, voice and other computers use the same meter and can't be told apart from the run's own use. Don't use them during a run.
 
 ## Learnings from testing
 
