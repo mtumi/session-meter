@@ -425,6 +425,15 @@ def cmd_run(a):
                 continue
             with lock:
                 append(a.run, dict(r, type="meter", note="auto"))
+                # A change counts only once the next reading agrees. The display can flicker for one
+                # reading (2026-11-24 peak run: 49, 50, 49), which used to stop the run as a "reset".
+                if r["five_hour"] == state["last"]:
+                    state["pending"] = None
+                elif state.get("pending") != r["five_hour"]:
+                    state["pending"] = r["five_hour"]
+                    continue
+                else:
+                    state["pending"] = None
                 if r["five_hour"] < state["last"]:
                     print("The meter dropped (a reset?). Stopping; discard this run.", flush=True)
                     break
@@ -449,6 +458,7 @@ def cmd_run(a):
                     state["last"] = r["five_hour"]
                     state["cost_since_tick"] = 0.0
                 per_pt = (sum(state["tick_costs"]) / len(state["tick_costs"])) if state["tick_costs"] else est_cost_pt
+                per_pt = per_pt or est_cost_pt
                 if state["first"] is None:
                     done, left_pts = 0, a.points + 1
                 else:
