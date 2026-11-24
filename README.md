@@ -40,7 +40,7 @@ This is an early release. What has and has not been checked, as of 2026-11-18:
 - **Automatic run, 2026-11-23:** the automatic `run` command, with `quiet pause` and `quiet resume`, on a Max plan with Sonnet 5.5 jobs and the measuring session idle. 400 jobs, no errors; one busy session paused and restarted. Three intervals of $1.33 of reported cost per point, within 1% of each other. That is about 1.7 times the hand run's figure, which fits the hand run counting the measuring session's own turns. The meter moved 2 points at a time on every change, so the script now counts points rather than ticks and finds the step size by itself.
 - **Not yet measured:** whether the meter weighs simultaneous jobs differently from one at a time (run the same work with 1 worker and with 8 and compare), and whether it lags behind spending.
 - **Not tested:** other plans, other models, Windows, Linux.
-- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big. The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation.
+- **Talking in percent, 2026-11-23:** with only the skill installed, Claude answered in percent when asked how much usage a batch would take, but in tokens when asked whether a job was big. The skill now triggers on any job sizing and, after calibrating, offers to add one line to your CLAUDE.md so it holds in every conversation. The line asks Claude to give percent alongside its usual estimate in tokens or time, rather than instead of it, so it works with Claude's habits instead of against them.
 
 A phone, the web app, voice and other computers draw on the same meter and cannot be separated from the readings. Do not use them during a run.
 
@@ -86,6 +86,14 @@ Then ask Claude to run the session-meter skill.
 **Can I leave other work running?** The clean mode wants nothing else running. The skill can pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). A passive mode adds up what other Claude Code sessions on the same computer logged, but it cannot see phone, web, voice or other computers, and it says how much it could account for.
 
 **Will the numbers stay true?** Only for the plan and the date measured. Run it again when the plan or the rules change.
+
+## Changes
+
+- **2026-11-18:** first release.
+- **2026-11-23:** the automatic run counts points of the meter rather than ticks, since some meters move 2 points at a time. The skill now triggers on any job sizing, and after calibrating it offers a one-line CLAUDE.md rule so Claude keeps talking in percent.
+- **2026-11-24:** the step size comes from the meter's second change, not its first, which is never a full step. Calibration dates use local time.
+- **2026-11-24:** a meter change counts only when the next reading agrees, so a one-reading flicker no longer stops a run.
+- **2026-11-24:** the CLAUDE.md rule now asks for percent alongside Claude's usual estimate in tokens or time, rather than instead of it.
 
 ## License and disclaimer
 
