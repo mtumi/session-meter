@@ -56,21 +56,19 @@ Then ask Claude to run the session-meter skill.
 
 **Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 
-**How reliable is the number?** Based on limited initial testing, runs on the same plan and kind of work have landed within about 15% of each other, so one run gives a fair figure and three or four give a solid one. It's quick to run, but Anthropic can change how usage is counted at any time, so rerun it regularly, and especially if a result seems off (see Notes on use).
+**How reliable is the number?** Based on limited initial testing, runs on the same plan and kind of work have landed within about 15% of each other, so one run gives a fair figure and three or four give a solid one. It's quick to run, but Anthropic can change how usage is counted at any time, so you may want to schedule it to run regularly, and especially if a result seems off (see Notes on use).
 
 ## How it works
 
-You start from a quiet account and run small jobs, several at a time. Every reply from Claude carries the account's current 5-hour figure (the response header `anthropic-ratelimit-unified-5h-utilization`), so each job is also a fresh, live reading of the meter, at no extra cost.
+The skill runs small jobs, several at a time, with nothing else using the account. Every reply from Claude carries the live 5-hour figure in the header `anthropic-ratelimit-unified-5h-utilization`, so each job is also a meter reading. It doesn't use `claude /usage`, which can be up to 5 minutes behind (see Learnings from testing).
 
-When the meter first moves up a point, that is the starting gun: the work before it is thrown away, since the run started partway into a point. When it moves up the next point, that is the end. The work between the two is exactly one point.
+The first time the meter moves up a point is the starting gun; the work before it is thrown away, since the run started partway into a point. The next move is the end. The work in between is exactly one point.
 
-A quick run therefore costs up to one point to reach the starting gun plus the one point measured: about 2 points. A spending cap (3 points by default, `--max-points`) stops the run wherever it is, for example if something else on the account is using the meter at the same time.
+So a run costs about 2 points: up to one to reach the starting gun, plus the one measured. A cap (3 points by default, `--max-points`) stops it early if something else on the account is spending.
 
-Repeating quick runs, rather than measuring more points in one run, shows whether the meter is steady. If runs of the same kind of work differ by more than about a quarter, something else was using the account, and the run is thrown out.
+Repeat runs to check the figure is steady. If runs of the same work differ by more than about a quarter, something else was using the account; throw that run out.
 
-The run does not use `claude /usage`, which can be up to 5 minutes behind (see Learnings from testing).
-
-The script also tests an easy case first: whether points simply follow the dollar cost that every headless run reports. If they do, one number per plan is all you need.
+The script also checks whether points track the cost each job reports. If they do, one number per plan is enough.
 
 ## Notes on use
 
