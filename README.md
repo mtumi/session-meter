@@ -10,7 +10,7 @@ Nobody publishes how one becomes the other, the answer can differ by plan and by
 
 ## What it does
 
-- Measures how much work one point of your 5-hour session is worth, by running small test jobs and watching the live meter move up a point.
+- Measures how much work one point of your 5-hour session is worth on the model you're using, by running small test jobs and watching the live meter move up a point. Each model gets its own figure, so run it once for each model you use.
 - Saves that figure, so Claude can tell you what a job will cost in percent of your session, alongside its usual estimate in tokens or time.
 - Takes about 2 points of your meter and a few minutes.
 - One Python script, standard library only.
@@ -60,7 +60,7 @@ Then ask Claude to run the session-meter skill.
 
 ## How it works
 
-The skill runs small jobs, several at a time, with nothing else using the account. Every reply from Claude carries the live 5-hour figure in the header `anthropic-ratelimit-unified-5h-utilization`, so each job is also a meter reading. It doesn't use `claude /usage`, which can be up to 5 minutes behind (see Learnings from testing).
+The skill runs small jobs, several at a time, with nothing else using the account. Every reply from Claude carries the live 5-hour figure in the header `anthropic-ratelimit-unified-5h-utilization`, so each job is also a meter reading. Jobs run on your active model unless you name another with `--model`, and the result is saved under that model. It doesn't use `claude /usage`, which can be up to 5 minutes behind (see Learnings from testing).
 
 The first time the meter moves up a point is the starting gun; the work before it is thrown away, since the run started partway into a point. The next move is the end. The work in between is exactly one point.
 
@@ -76,7 +76,7 @@ The script also checks whether points track the cost each job reports. If they d
 
 Don't use Claude on your phone, the web, voice or another computer during a run. The skill can't pause those, and their use lands on the same meter.
 
-Rerun it after changing plan or model, after a Claude Code update, and whenever an estimate in percent seems off.
+Run it once for each model you use; a figure measured on one model doesn't apply to another. Rerun it after changing plan, after a Claude Code update, and whenever an estimate in percent seems off.
 
 ### Time of day
 
@@ -87,6 +87,7 @@ Anthropic has made the session drain faster on weekdays from 8am to 2pm Eastern 
 **v0.2.1, 2026-11-24**
 
 - One kind of run: the "quick" and "standard" tiers are gone. To compare kinds of work, run once per kind.
+- Runs on your active model by default, and keeps a separate figure for each model; estimates use the figure for the model doing the work.
 - Passive mode is gone from the docs; a run always pauses your other sessions.
 - The spending cap is described as it works: at 3 points no new jobs start, and the few already running finish.
 - README reorganized: install near the top, shorter throughout, and a Learnings from testing section with a fourth lesson (ask for percent alongside tokens, not instead of them).

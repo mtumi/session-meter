@@ -347,15 +347,40 @@ def do_resume():
 
 
 
-def cmd_estimate(a):
+def model_key(m):
+    """One name per model: drop a context-window suffix such as '[1m]'."""
+    return re.sub(r"\[[^\]]*\]$", "", m or "").strip() or "unknown"
+
+
+def load_calibration():
+    """Calibration figures by model, from runs/calibration.json ({} if none)."""
     path = os.path.join(RUNS, "calibration.json")
-    if not os.path.exists(path):
-        print("No calibration yet. Run a measurement and 'fit' first.")
+    try:
+        c = json.load(open(path))
+    except (OSError, ValueError):
+        return {}
+    return dict(c.get("by_model") or {c.get("model", "unknown"): c})
+
+
+def cmd_estimate(a):
+    by_model = load_calibration()
+    if not by_model:
+        print("No calibration yet. Run a measurement first.")
         return 1
-    c = json.load(open(path))
+    if a.model:
+        c = by_model.get(model_key(a.model))
+        if not c:
+            print("Not measured for %s (measured: %s). Run: session_meter.py run --model %s ..." % (
+                a.model, ", ".join(sorted(by_model)), a.model))
+            return 1
+    elif len(by_model) == 1:
+        c = list(by_model.values())[0]
+    else:
+        print("Several models measured (%s); pass --model." % ", ".join(sorted(by_model)))
+        return 1
     pts = a.cost_usd * c["points_per_usd"]
-    print("About %.1f%% of the 5-hour session (rough; measured %s on %s, %d intervals)." % (
-        pts, c["date"], c.get("plan") or "unknown plan", c["intervals"]))
+    print("About %.1f%% of the 5-hour session on %s (rough; measured %s on %s)." % (
+        pts, c.get("model", "an unrecorded model"), c["date"], c.get("plan") or "unknown plan"))
     return 0
 
 
@@ -384,8 +409,9 @@ def one_job(a):
     if a.filler_words:
         prompt = filler(a.filler_words) + "\n\n" + prompt
     cmd = ["claude", "-p", "--safe-mode", "--strict-mcp-config", "--tools", "", "--setting-sources", "",
-           "--no-session-persistence", "--no-chrome", "--disable-slash-commands", "--model", a.model,
-           "--output-format", "json"]
+           "--no-session-persistence", "--no-chrome", "--disable-slash-commands", "--output-format", "json"]
+    if a.model:  # no --model: Claude Code's own default, i.e. whatever model is active
+        cmd += ["--model", a.model]
     env = dict(os.environ, ANTHROPIC_LOG="debug")
     t0 = now()
     p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tempfile.gettempdir(),
@@ -409,8 +435,10 @@ def one_job(a):
     rec.update({"input": u.get("input_tokens", 0), "cache_write": u.get("cache_creation_input_tokens", 0),
                 "cache_read": u.get("cache_read_input_tokens", 0), "output": u.get("output_tokens", 0),
                 "cost_usd": d.get("total_cost_usd"), "models": mu, "is_error": d.get("is_error")})
-    if a.model not in mu:
+    if a.model and a.model not in mu:
         rec["error"] = "asked for %s, answered by %s" % (a.model, sorted(mu))
+    if mu:  # record the model that actually answered; the figure is saved under it
+        rec["model"] = model_key(max(mu, key=lambda m: (mu[m] or {}).get("outputTokens", 0)))
     return rec
 
 
@@ -447,12 +475,11 @@ def cmd_run(a):
     rate = a.workers * jcost / jsecs  # dollars of reported cost per second, all workers together
     # Cost of one point for the estimate: the last measured figure if there is one, else the guess.
     per_pt, basis = a.expect_usd_per_point, "a guess; nothing measured yet"
-    try:
-        cal = json.load(open(os.path.join(RUNS, "calibration.json")))
-        if cal.get("cost_usd_per_point"):
-            per_pt, basis = cal["cost_usd_per_point"], "the last measured figure, %s" % cal.get("date", "?")
-    except (OSError, ValueError):
-        pass
+    model = pj.get("model") or a.model
+    print("Model: %s%s." % (model, "" if a.model else " (the active model; pass --model to measure another)"), flush=True)
+    cal = load_calibration().get(model_key(model))
+    if cal and cal.get("cost_usd_per_point"):
+        per_pt, basis = cal["cost_usd_per_point"], "the last figure for this model, %s" % cal.get("date", "?")
     # Reaching the starting gun takes half a point on average and a whole point at most.
     typ_min = (0.5 + a.points) * per_pt / rate / 60.0
     max_min = (1 + a.points) * per_pt / rate / 60.0
@@ -666,12 +693,20 @@ def cmd_fit(a):
     overall = sum(iv["per_point"]["cost"] for iv in intervals) / len(intervals)
     if overall > 0:
         plan = next((r.get("plan") for r in recs if r["type"] == "run" and r.get("plan")), None)
-        cal = {"date": datetime.now().astimezone().strftime("%Y-%m-%d"), "plan": plan, "run": a.run, "intervals": len(intervals),
+        models = [model_key(j.get("model")) for j in jobs if j.get("model")]
+        model = max(set(models), key=models.count) if models else "unknown"
+        cal = {"date": datetime.now().astimezone().strftime("%Y-%m-%d"), "plan": plan, "run": a.run, "model": model,
+               "intervals": len(intervals),
                "cost_usd_per_point": round(overall, 4), "points_per_usd": round(1.0 / overall, 3),
                "by_mix": dict((m, round(v, 4)) for m, v in means.items()),
                "note": "Cost is the dollar figure the headless run reports. Not corrected for the measuring session's own turns."}
-        json.dump(cal, open(os.path.join(RUNS, "calibration.json"), "w"), indent=1)
-        print("\nSaved runs/calibration.json: about %.1f%% of the 5-hour session per dollar of reported cost." % (1.0 / overall))
+        # A figure is only good for the model it was measured on, so keep one per model.
+        by_model = load_calibration()
+        by_model[model] = cal
+        json.dump(dict(cal, by_model=by_model), open(os.path.join(RUNS, "calibration.json"), "w"), indent=1)
+        print("\nSaved runs/calibration.json for %s: about %.1f%% of the 5-hour session per dollar of reported cost." % (
+            model, 1.0 / overall))
+        print("This figure is for %s only. Measured so far: %s." % (model, ", ".join(sorted(by_model))))
     real = [m for m in means if m != "?"]
     if len(real) >= 2:
         vals = [means[m] for m in real]
@@ -721,7 +756,7 @@ def main():
     s.set_defaults(f=cmd_quiet)
     s = sub.add_parser("run", help="measure automatically: jobs in parallel, meter polled, progress and time estimate")
     s.add_argument("--run", required=True); s.add_argument("--mix", required=True)
-    s.add_argument("--model", required=True, help="full model id")
+    s.add_argument("--model", default=None, help="full model id; default: the active model. Each model gets its own figure")
     s.add_argument("--prompt"); s.add_argument("--prompt-file"); s.add_argument("--filler-words", type=int, default=0)
     s.add_argument("--points", type=int, default=1, help="points to measure after the starting gun (default 1)")
     s.add_argument("--max-points", type=int, default=3, help="spending cap in points of the 5-hour session (default 3)")
@@ -731,7 +766,8 @@ def main():
     s.add_argument("--max-minutes", type=int, default=60); s.add_argument("--plan"); s.add_argument("--note")
     s.set_defaults(f=cmd_run)
     s = sub.add_parser("estimate", help="turn a dollar figure from a job report into percent of the 5-hour session")
-    s.add_argument("--cost-usd", type=float, required=True); s.set_defaults(f=cmd_estimate)
+    s.add_argument("--cost-usd", type=float, required=True)
+    s.add_argument("--model", help="full model id; each model has its own figure"); s.set_defaults(f=cmd_estimate)
     s = sub.add_parser("fit"); s.add_argument("--run", required=True); s.set_defaults(f=cmd_fit)
     a = ap.parse_args()
     sys.exit(a.f(a) or 0)
