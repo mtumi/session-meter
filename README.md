@@ -159,7 +159,7 @@ Other routes fall short too: the endpoint behind `/usage` (`/api/oauth/usage`) i
 
 The fix was to ask for percent of the session alongside any estimate in tokens or time. That doesn't fight the old habit, and it turns the old habit into the trigger: whenever Claude reaches for tokens, the percent comes with it. Retested, both kinds of question gave percent.
 
-**5. Measure every model you plan to use.** This one was more an oversight than a discovery: every model uses up the session at a different rate, and we first measured only Sonnet. A figure measured on one model doesn't carry over to another, so the skill now runs on your active model and saves a separate figure for each.
+**5. Measure every model you plan to use.** This one was more an initial oversight from releasing quickly than a discovery: every model uses up the session at a different rate, and we first measured only Sonnet. A figure measured on one model doesn't carry over to another, so the skill now runs on your active model and saves a separate figure for each.
 
 ## Related tools
 
