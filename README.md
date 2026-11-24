@@ -117,6 +117,7 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 - **Run replayed on recorded replies:** found the same point as a count by hand.
 - **Spending cap, and replies with no usage figure:** both stop the run as they should, on made-up readings.
 - **Prompt guard:** on during the real run and cleared afterwards. Both replies, discarding a run and the time shown were checked against a simulated run.
+- **Pausing other sessions:** 33 sessions paused and all resumed on 2026-11-18; a busy session paused and resumed during a run on 2026-11-23.
 - **Per-point calculation:** recovered a known figure within a few percent, on made-up data.
 - **Earlier runs read through `/usage`** (2026-11-18 by hand, 2026-11-23 automatic): about 47,000 to 49,000 output tokens per point on 2026-11-23, in line with the live figures. Their 2-point steps were the `/usage` delay.
 - **Percent in estimates:** with the CLAUDE.md line, Claude gave percent for both a usage question and a "how long will this take" question.
@@ -124,7 +125,7 @@ As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on So
 **Not tested yet**
 
 - Peak hours: no clean peak-hour run yet.
-- The pause command itself (`quiet pause --all`) and `scripts/peak_run.sh`. The real runs had everything else stopped by hand, so measuring on a quiet account is tested; the script doing the pausing is not.
+- `scripts/peak_run.sh`, the one-line start for a run by hand.
 - Other kinds of work. A point is probably a different number of tokens when a job mostly rereads a long context, or runs on Opus instead of Sonnet; only the short Sonnet jobs above have been measured.
 - Running jobs one at a time. Every run so far ran 4 at once; the same work done one after another might use the meter differently.
 - Other plans, other models, Windows, Linux.
