@@ -1,6 +1,6 @@
 # session-meter
 
-A Claude Code skill that measures what a piece of work costs on Claude's 5-hour usage meter, in percent of the session, by catching the exact moments the meter moves up a point.
+A Claude Code skill that tells you what work costs in percent of your 5-hour session.
 
 ## The problem
 
