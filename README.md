@@ -54,7 +54,7 @@ Then ask Claude to run the session-meter skill.
 
 **Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
 
-**Can I leave other work running?** No. Anything else using Claude during a run lands on the same meter. The skill will pause your other Claude Code sessions for the run, if you say yes, and restart them afterwards (Mac and Linux). Phone, web and voice can't be paused, so leave them alone for the few minutes it takes.
+**Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 
 **When should I run it again?** When something changes what a point is worth: a new plan, a different model or kind of work, a new Claude Code version, or an announced change to usage limits. Also if Claude's estimates in percent stop matching what the meter shows. A run costs about 2 points, so rerunning is cheap.
 
