@@ -54,6 +54,8 @@ Then ask Claude to run the session-meter skill.
 
 **Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. Once 3 points are used it starts no new jobs; the few already running finish, a small fraction of a point.
 
+**Do I need to run it for each model I use (Sonnet, Opus and so on)?** Yes. Each model uses the meter at a different rate, so a figure measured on one doesn't apply to another. The skill keeps a separate figure for each.
+
 **Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 
 **How reliable is the number?** Based on limited initial testing, runs on the same plan and kind of work have landed within about 15% of each other, so one run gives a fair figure and three or four give a solid one. It's quick to run, but Anthropic can change how usage is counted at any time, so you may want to schedule it to run regularly, and especially if a result seems off (see Notes on use).
@@ -76,7 +78,7 @@ The script also checks whether points track the cost each job reports. If they d
 
 Don't use Claude on your phone, the web, voice or another computer during a run. The skill can't pause those, and their use lands on the same meter.
 
-Run it once for each model you use; a figure measured on one model doesn't apply to another. Rerun it after changing plan, after a Claude Code update, and whenever an estimate in percent seems off.
+Rerun it after changing plan, after a Claude Code update, and whenever an estimate in percent seems off.
 
 ### Time of day
 
