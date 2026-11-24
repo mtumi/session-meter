@@ -458,7 +458,7 @@ def cmd_run(a):
     max_min = (1 + a.points) * per_pt / rate / 60.0
     print("Pilot: one job takes %.0fs and reports $%.3f. Meter at %g%%." % (jsecs, jcost, start), flush=True)
     print("Plan: %d workers. Run until the meter changes (the starting gun; up to one point, not measured), "
-          "then measure %d point(s). Spending cap: %d points; the run stops there whatever happens."
+          "then measure %d point(s). Spending cap: %d points; at the cap it starts no new jobs."
           % (a.workers, a.points, a.max_points), flush=True)
     print("Estimated time: about %d minute(s), at most about %d, at $%.2f per point (%s)." % (
         max(1, round(typ_min)), max(1, round(max_min)), per_pt, basis), flush=True)

@@ -52,7 +52,7 @@ Then ask Claude to run the session-meter skill.
 
 ## Questions
 
-**Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. It stops at a 3-point cap whatever happens.
+**Does it use my meter?** Yes. That is the point. A run uses about 2 points: up to one point to reach the starting gun, then one point measured. Once 3 points are used it starts no new jobs; the few already running finish, a small fraction of a point.
 
 **Can I leave other work running?** No, it will temporarily pause any running sessions and auto-resume them afterwards. If you want to interrupt it, you can, and it will just discard that test run.
 

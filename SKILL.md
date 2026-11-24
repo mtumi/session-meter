@@ -30,7 +30,7 @@ The manual way:
 Run jobs one at a time. Name the model in full; the script refuses to trust a reply from a different model.
 
 ## What a run measures
-- **One run, about 2 points, never more than 3:** one kind of work; up to one point to reach the starting gun (thrown away), then one point measured. The spending cap (3 by default) stops the run wherever it is. Steadiness comes from repeating runs, not from more points in one run.
+- **One run, about 2 points, capped at 3:** one kind of work; up to one point to reach the starting gun (thrown away), then one point measured. The spending cap (3 by default) stops the run wherever it is. Steadiness comes from repeating runs, not from more points in one run.
 - **Other kinds of work:** run once per kind, with its own `--mix` and `--prompt-file` (reread-heavy: `workloads/reread-heavy.md` with `--filler-words 30000`; another model: `--model`).
 - **Dollar-cost test:** the headless report includes a dollar cost. If points per dollar come out the same for every kind of work, one number per plan is enough.
 
