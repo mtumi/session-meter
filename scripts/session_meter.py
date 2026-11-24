@@ -193,7 +193,32 @@ import re
 import signal
 
 FROZEN = os.path.join(RUNS, "frozen.json")
+# Shared with scripts/meter_guard.py (a prompt hook): CHECK exists while a check is in progress,
+# LAST_CHECK records the latest one so a resumed session can be told it was paused.
+CHECK = os.path.expanduser("~/.claude/session-meter-check.json")
+LAST_CHECK = os.path.expanduser("~/.claude/session-meter-last-check.json")
+
+
+def write_check(**fields):
+    d = {}
+    if os.path.exists(CHECK):
+        try:
+            d = json.load(open(CHECK))
+        except ValueError:
+            pass
+    d.update(fields)
+    json.dump(d, open(CHECK, "w"))
 PATTERN = re.compile(r"claude-code/|/claude(\s|$)|^claude(\s|$)")
+
+
+def notify(text):
+    """Best-effort desktop notification (macOS only); never fails the run."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["osascript", "-e", 'display notification %s with title "session-meter"' % json.dumps(text)],
+                           capture_output=True, timeout=10)
+        except Exception:
+            pass
 
 
 def ps_rows():
@@ -271,15 +296,35 @@ def cmd_quiet(a):
             pass
     os.makedirs(RUNS, exist_ok=True)
     json.dump({"t": now(), "paused": paused}, open(FROZEN, "w"))
+    write_check(started=now(), paused_pids=[x["pid"] for x in paused])
     if paused:
         # Quiet backstop: they restart by themselves after 90 minutes if nobody runs 'quiet resume'.
         subprocess.Popen(["sh", "-c", "sleep 5400; kill -CONT %s 2>/dev/null" % " ".join(str(x["pid"]) for x in paused)],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    notify("Paused %d Claude Code session(s) for a meter check. They resume by themselves when it ends "
+           "(about 15 minutes). Anything you type in them waits until then." % len(paused))
     print("Paused %d session(s):" % len(paused))
     for x in paused:
         print("  %s  (process %d)" % (x["folder"], x["pid"]))
     print("To restart them now: session_meter.py quiet resume")
     return 0
+
+
+def finish_check(paused=None, discarded=False):
+    """Clear the in-progress marker and record the check for meter_guard.py."""
+    d = {}
+    if os.path.exists(CHECK):
+        try:
+            d = json.load(open(CHECK))
+        except ValueError:
+            pass
+        os.remove(CHECK)
+    if os.path.exists(LAST_CHECK) and not d and not paused:
+        return  # nothing new to record (a second resume after a discard)
+    rec = {"started": d.get("started"), "ended": now(), "run": d.get("run"),
+           "paused_pids": paused if paused is not None else d.get("paused_pids", []),
+           "discarded": discarded or d.get("discarded", False), "told": []}
+    json.dump(rec, open(LAST_CHECK, "w"))
 
 
 def do_resume():
@@ -293,6 +338,8 @@ def do_resume():
         except OSError:
             pass
     os.remove(FROZEN)
+    finish_check(paused=[x["pid"] for x in paused])
+    notify("Meter check over. %d paused Claude Code session(s) are running again." % len(paused))
     print("Restarted %d session(s):" % len(paused))
     for x in paused:
         print("  " + x["folder"])
@@ -396,6 +443,14 @@ def cmd_run(a):
     print("Estimated time: about %.0f minutes (at an assumed $%.2f per point; this sharpens after the first point)." % (
         total_min, est_cost_pt), flush=True)
     t_start = time.time()
+    # Mark the check as in progress (meter_guard.py answers new prompts with a choice while this exists).
+    write_check(run_pid=os.getpid(), run=a.run, started=now())
+    discarded = {"yes": False}
+
+    def on_term(signum, frame):
+        discarded["yes"] = True
+        raise SystemExit(3)
+    signal.signal(signal.SIGTERM, on_term)
 
     def worker(delay):
         time.sleep(delay)
@@ -477,6 +532,15 @@ def cmd_run(a):
         print("Stopping jobs (letting in-flight ones finish)...", flush=True)
         for t in threads:
             t.join(timeout=120)
+        if discarded["yes"]:
+            append(a.run, {"type": "discarded", "t": now(), "note": "discarded from the prompt guard (chose to work instead)"})
+            print("Check discarded from the prompt guard. Do not use this run.", flush=True)
+        try:
+            pending_resume = bool(json.load(open(CHECK)).get("paused_pids"))
+        except (OSError, ValueError):
+            pending_resume = False
+        if not pending_resume:  # nothing paused: clear the marker now; otherwise 'quiet resume' does it
+            finish_check(paused=[], discarded=discarded["yes"])
     print("\nFitting.", flush=True)
     class F: pass
     f = F(); f.run = a.run
