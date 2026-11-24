@@ -106,17 +106,17 @@ Anthropic has made the session drain faster on weekdays from 8am to 2pm Eastern 
 
 ## Our testing
 
-As of 2026-11-24, on a Max plan with Sonnet 5.5 jobs.
+As of 2026-11-24, on a Max plan. The test jobs are short and output-heavy, on Sonnet 5.5: each about 960 output tokens, plus about 1,900 written to the cache and 3,300 read from it.
 
 **Tested**
 
-- **Live meter reading:** quiet account, 4 workers, 156 jobs. The meter moved one point at a time; $1.19 and $1.36 of reported cost per point (`runs/live-headers-2026-11-24.jsonl`).
-- **Quick run, real:** starting gun at 74%, stopped at 75%, 2 points used, $1.18 per point (`runs/quick-2026-11-24-1419.jsonl`).
-- **Quick run, replayed on recorded replies:** $1.16 per point, matching a count by hand.
+- **Live meter reading:** quiet account, 4 workers, 156 jobs. The meter moved one point at a time, every 43 and 50 jobs: about 41,000 and 48,000 output tokens per point (`runs/live-headers-2026-11-24.jsonl`).
+- **Real run:** starting gun at 74%, stopped at 75%, 2 points used, about 42,000 output tokens per point (`runs/quick-2026-11-24-1419.jsonl`).
+- **Run replayed on recorded replies:** found the same point as a count by hand.
 - **Spending cap, and replies with no usage figure:** both stop the run as they should, on made-up readings.
 - **Prompt guard:** both replies, discarding a run, and the time shown, against a simulated run. Not yet during a real run.
-- **Cost calculation:** recovered a known cost per point within a few percent, on made-up data.
-- **Earlier runs read through `/usage`** (2026-11-18 by hand, 2026-11-23 automatic): $1.33 per point on 2026-11-23, in line with the live figures. Their 2-point steps were the `/usage` delay.
+- **Per-point calculation:** recovered a known figure within a few percent, on made-up data.
+- **Earlier runs read through `/usage`** (2026-11-18 by hand, 2026-11-23 automatic): about 47,000 to 49,000 output tokens per point on 2026-11-23, in line with the live figures. Their 2-point steps were the `/usage` delay.
 - **Percent in estimates:** with the CLAUDE.md line, Claude gave percent for both a usage question and a "how long will this take" question.
 
 **Not tested yet**
