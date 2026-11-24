@@ -10,10 +10,10 @@ Nobody publishes how one becomes the other, the answer can differ by plan and by
 
 ## What it does
 
-- The meter shows whole percents, and its weights are not published. Token counts do not tell you what a job will cost on it, and the rules can change at any time.
-- Each time the meter moves from N to N+1, the work done since the previous move cost exactly one point. The skill runs small jobs, reads the live meter from each job's own reply, and divides the recorded work between moves by the points.
-- One run measures one kind of work and costs about 2 points of the meter, never more than 3 unless you raise the cap. To compare kinds of work, such as heavy rereading or another model, run it once for each.
-- Everything is one Python script that uses only the standard library. No packages, no network calls of its own.
+- Measures how much work one point of your 5-hour session is worth, by running small test jobs and watching the live meter move up a point.
+- Saves that figure, so Claude can tell you what a job will cost in percent of your session, alongside its usual estimate in tokens or time.
+- Takes about 2 points of your meter and a few minutes.
+- One Python script, standard library only.
 
 ## Install
 
